@@ -7,7 +7,7 @@ use ruff_python_ast::str::Quote;
 use ruff_python_ast::{
     self as ast, Alias, AnyStringFlags, ArgOrKeyword, BoolOp, BytesLiteralFlags, CmpOp,
     Comprehension, ConversionFlag, DebugText, ExceptHandler, Expr, Identifier, MatchCase, Operator,
-    Parameter, Parameters, Pattern, Singleton, Stmt, StringFlags, Suite, TypeParam,
+    Parameter, Parameters, Pattern, Singleton, Stmt, StmtBody, StringFlags, TypeParam,
     TypeParamParamSpec, TypeParamTypeVar, TypeParamTypeVarTuple, WithItem,
 };
 use ruff_python_ast::{ParameterWithDefault, TypeParams};
@@ -160,9 +160,9 @@ impl<'a> Generator<'a> {
         }
     }
 
-    fn body(&mut self, stmts: &[Stmt]) {
+    fn body(&mut self, body: &StmtBody) {
         self.indent_depth = self.indent_depth.saturating_add(1);
-        for stmt in stmts {
+        for stmt in &body.body {
             self.unparse_stmt(stmt);
         }
         self.indent_depth = self.indent_depth.saturating_sub(1);
@@ -239,7 +239,7 @@ impl<'a> Generator<'a> {
         self.buffer
     }
 
-    pub fn unparse_suite(&mut self, suite: &Suite) {
+    pub fn unparse_suite(&mut self, suite: &[Box<Stmt>]) {
         for stmt in suite {
             self.unparse_stmt(stmt);
         }
@@ -454,7 +454,7 @@ impl<'a> Generator<'a> {
                     self.p(":");
                 });
                 self.body(body);
-                if !orelse.is_empty() {
+                if !orelse.body.is_empty() {
                     statement!({
                         self.p("else:");
                     });
@@ -474,7 +474,7 @@ impl<'a> Generator<'a> {
                     self.p(":");
                 });
                 self.body(body);
-                if !orelse.is_empty() {
+                if !orelse.body.is_empty() {
                     statement!({
                         self.p("else:");
                     });
@@ -604,13 +604,13 @@ impl<'a> Generator<'a> {
                     });
                 }
 
-                if !orelse.is_empty() {
+                if !orelse.body.is_empty() {
                     statement!({
                         self.p("else:");
                     });
                     self.body(orelse);
                 }
-                if !finalbody.is_empty() {
+                if !finalbody.body.is_empty() {
                     statement!({
                         self.p("finally:");
                     });
@@ -722,6 +722,11 @@ impl<'a> Generator<'a> {
                 statement!({
                     self.p("continue");
                 });
+            }
+            Stmt::BodyStmt(ast::StmtBody { body, .. }) => {
+                for stmt in body {
+                    self.unparse_stmt(stmt);
+                }
             }
             Stmt::IpyEscapeCommand(ast::StmtIpyEscapeCommand { kind, value, .. }) => {
                 statement!({
@@ -1651,11 +1656,11 @@ mod tests {
         let Mod::Module(ModModule { body, .. }) = parsed.into_syntax() else {
             panic!("Source code didn't return ModModule")
         };
-        let [stmt] = body.as_slice() else {
+        let [stmt] = body.body.as_slice() else {
             panic!("Expected only one statement in source code")
         };
         let mut generator = Generator::new(&indentation, line_ending);
-        generator.unparse_stmt(stmt);
+        generator.unparse_stmt(stmt.as_ref());
         generator.generate()
     }
 

@@ -1512,14 +1512,14 @@ impl<'src> Parser<'src> {
             self.expect(TokenKind::Colon);
             self.parse_body(Clause::Else)
         } else {
-            vec![]
+            self.make_body(Vec::new())
         };
 
         let (finalbody, has_finally) = if self.eat(TokenKind::Finally) {
             self.expect(TokenKind::Colon);
             (self.parse_body(Clause::Finally), true)
         } else {
-            (vec![], false)
+            (self.make_body(Vec::new()), false)
         };
 
         if !has_except && !has_finally {
@@ -1825,7 +1825,7 @@ impl<'src> Parser<'src> {
             self.expect(TokenKind::Colon);
             self.parse_body(Clause::Else)
         } else {
-            vec![]
+            self.make_body(Vec::new())
         };
 
         ast::StmtFor {
@@ -1875,7 +1875,7 @@ impl<'src> Parser<'src> {
             self.expect(TokenKind::Colon);
             self.parse_body(Clause::Else)
         } else {
-            vec![]
+            self.make_body(Vec::new())
         };
 
         ast::StmtWhile {
@@ -2939,7 +2939,7 @@ impl<'src> Parser<'src> {
                         ..ast::Parameters::default()
                     }),
                     returns: None,
-                    body: vec![],
+                    body: self.make_body(Vec::new()),
                 }
                 .into()
             }
@@ -2950,14 +2950,15 @@ impl<'src> Parser<'src> {
     ///
     /// This could either be a single statement that's on the same line as the
     /// clause header or an indented block.
-    fn parse_body(&mut self, parent_clause: Clause) -> Vec<Stmt> {
+    fn parse_body(&mut self, parent_clause: Clause) -> ast::StmtBody {
         // Note: The test cases in this method chooses a clause at random to test
         // the error logic.
 
         let newline_range = self.current_token_range();
         if self.eat(TokenKind::Newline) {
             if self.at(TokenKind::Indent) {
-                return self.parse_block();
+                let body = self.parse_block();
+                return self.make_body(body);
             }
             // test_err clause_expect_indented_block
             // # Here, the error is highlighted at the `pass` token
@@ -2978,7 +2979,8 @@ impl<'src> Parser<'src> {
             );
         } else {
             if self.at_simple_stmt() {
-                return self.parse_simple_statements();
+                let body = self.parse_simple_statements();
+                return self.make_body(body);
             }
             // test_err clause_expect_single_statement
             // if True: if True: pass
@@ -2988,7 +2990,21 @@ impl<'src> Parser<'src> {
             );
         }
 
-        Vec::new()
+        self.make_body(Vec::new())
+    }
+
+    pub(super) fn make_body(&self, body: Vec<Stmt>) -> ast::StmtBody {
+        let range = if body.is_empty() {
+            self.missing_node_range()
+        } else {
+            TextRange::new(body.first().unwrap().start(), body.last().unwrap().end())
+        };
+        let body = body.into_iter().map(Box::new).collect();
+        ast::StmtBody {
+            body,
+            range,
+            node_index: AtomicNodeIndex::NONE,
+        }
     }
 
     /// Parses a block of statements.

@@ -214,8 +214,11 @@ fn generate_fix(
     // Only replace context managers with a single assignment or annotated assignment in the body.
     // The assignment's RHS must also be the same as the `read` call in `expr`, otherwise this fix
     // would remove the rest of the expression.
-    let replacement = match with_stmt.body.as_slice() {
-        [Stmt::Assign(ast::StmtAssign { targets, value, .. })] if value.range() == expr.range() => {
+    let [stmt] = with_stmt.body.as_slice() else {
+        return None;
+    };
+    let replacement = match stmt.as_ref() {
+        Stmt::Assign(ast::StmtAssign { targets, value, .. }) if value.range() == expr.range() => {
             match targets.as_slice() {
                 [Expr::Name(name)] => {
                     let target = match open.argument {
@@ -231,14 +234,12 @@ fn generate_fix(
                 _ => return None,
             }
         }
-        [
-            Stmt::AnnAssign(ast::StmtAnnAssign {
-                target,
-                annotation,
-                value: Some(value),
-                ..
-            }),
-        ] if value.range() == expr.range() => match target.as_ref() {
+        Stmt::AnnAssign(ast::StmtAnnAssign {
+            target,
+            annotation,
+            value: Some(value),
+            ..
+        }) if value.range() == expr.range() => match target.as_ref() {
             Expr::Name(name) => {
                 let target = match open.argument {
                     OpenArgument::Builtin { filename } => {

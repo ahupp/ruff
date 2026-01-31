@@ -221,7 +221,7 @@ fn affix_removal_data_stmt(if_stmt: &ast::StmtIf) -> Option<RemoveAffixData<'_>>
         targets,
         range: _,
         node_index: _,
-    } = statement.as_assign_stmt()?;
+    } = statement.as_ref().as_assign_stmt()?;
     let [target] = targets.as_slice() else {
         return None;
     };

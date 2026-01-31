@@ -4,7 +4,7 @@ use ruff_text_size::{Ranged, TextRange};
 use smallvec::{SmallVec, smallvec};
 
 /// Returns the control flow graph associated to an array of statements
-pub fn build_cfg(stmts: &[Stmt]) -> ControlFlowGraph<'_> {
+pub fn build_cfg(stmts: &[Box<Stmt>]) -> ControlFlowGraph<'_> {
     let mut builder = CFGBuilder::with_capacity(stmts.len());
     builder.process_stmts(stmts);
     builder.finish()
@@ -38,7 +38,7 @@ impl<'stmt> ControlFlowGraph<'stmt> {
     }
 
     /// Returns the statements comprising the basic block at the given index
-    pub fn stmts(&self, block: BlockId) -> &'stmt [Stmt] {
+    pub fn stmts(&self, block: BlockId) -> &'stmt [Box<Stmt>] {
         self.blocks[block].stmts
     }
 
@@ -72,7 +72,7 @@ pub struct BlockId;
 struct BlockData<'stmt> {
     kind: BlockKind,
     /// Slice of statements regarded as executing unconditionally in order
-    stmts: &'stmt [Stmt],
+    stmts: &'stmt [Box<Stmt>],
     /// Outgoing edges, indicating possible paths of execution after the
     /// block has concluded
     out: Edges,
@@ -90,7 +90,7 @@ impl Ranged for BlockData<'_> {
             return TextRange::default();
         };
 
-        TextRange::new(first.start(), last.end())
+        TextRange::new(first.as_ref().start(), last.as_ref().end())
     }
 }
 
@@ -191,7 +191,7 @@ impl<'stmt> CFGBuilder<'stmt> {
     }
 
     /// Runs the core logic for the builder.
-    fn process_stmts(&mut self, stmts: &'stmt [Stmt]) {
+    fn process_stmts(&mut self, stmts: &'stmt [Box<Stmt>]) {
         // SAFETY With notation as below, we always maintain the invariant
         // `start <= end + 1`. Since `end <= stmts.len() -1` we conclude that
         // `start <= stmts.len()`. It is therefore always safe to use `start` as
@@ -199,7 +199,7 @@ impl<'stmt> CFGBuilder<'stmt> {
         let mut start = 0;
         for (end, stmt) in stmts.iter().enumerate() {
             let cache_exit = self.exit();
-            match stmt {
+            match stmt.as_ref() {
                 Stmt::FunctionDef(_)
                 | Stmt::ClassDef(_)
                 | Stmt::Assign(_)
@@ -213,7 +213,8 @@ impl<'stmt> CFGBuilder<'stmt> {
                 | Stmt::Expr(_)
                 | Stmt::Pass(_)
                 | Stmt::Delete(_)
-                | Stmt::IpyEscapeCommand(_) => {}
+                | Stmt::IpyEscapeCommand(_)
+                | Stmt::BodyStmt(_) => {}
                 // Loops
                 Stmt::While(_) => {}
                 Stmt::For(_) => {}
@@ -301,7 +302,7 @@ impl<'stmt> CFGBuilder<'stmt> {
     /// Populates the current basic block with the given set of statements.
     ///
     /// This should only be called once on any given block.
-    fn set_current_block_stmts(&mut self, stmts: &'stmt [Stmt]) {
+    fn set_current_block_stmts(&mut self, stmts: &'stmt [Box<Stmt>]) {
         debug_assert!(
             self.cfg.blocks[self.current].stmts.is_empty(),
             "Attempting to set statements on an already populated basic block."

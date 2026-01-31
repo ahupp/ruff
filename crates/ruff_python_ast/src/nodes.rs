@@ -22,7 +22,7 @@ use crate::str_prefix::{
 };
 use crate::{
     Expr, ExprRef, InterpolatedStringElement, LiteralExpressionRef, OperatorPrecedence, Pattern,
-    Stmt, TypeParam, int,
+    Stmt, StmtBody, TypeParam, int,
     name::Name,
     str::{Quote, TripleQuotes},
 };
@@ -45,13 +45,35 @@ impl StmtClassDef {
     }
 }
 
+impl Stmt {
+    pub fn as_body(&self) -> Option<&[Box<Stmt>]> {
+        match self {
+            Stmt::BodyStmt(StmtBody { body, .. }) => Some(body),
+            _ => None,
+        }
+    }
+
+    pub fn as_body_mut(&mut self) -> Option<&mut Vec<Box<Stmt>>> {
+        match self {
+            Stmt::BodyStmt(StmtBody { body, .. }) => Some(body),
+            _ => None,
+        }
+    }
+}
+
+impl StmtBody {
+    pub fn as_slice(&self) -> &[Box<Stmt>] {
+        &self.body
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "get-size", derive(get_size2::GetSize))]
 pub struct ElifElseClause {
     pub range: TextRange,
     pub node_index: AtomicNodeIndex,
     pub test: Option<Expr>,
-    pub body: Vec<Stmt>,
+    pub body: StmtBody,
 }
 
 impl Expr {
@@ -2712,7 +2734,7 @@ pub struct ExceptHandlerExceptHandler {
     pub node_index: AtomicNodeIndex,
     pub type_: Option<Box<Expr>>,
     pub name: Option<Identifier>,
-    pub body: Vec<Stmt>,
+    pub body: StmtBody,
 }
 
 /// See also [arg](https://docs.python.org/3/library/ast.html#ast.arg)
@@ -2773,7 +2795,7 @@ pub struct MatchCase {
     pub node_index: AtomicNodeIndex,
     pub pattern: Pattern,
     pub guard: Option<Box<Expr>>,
-    pub body: Vec<Stmt>,
+    pub body: StmtBody,
 }
 
 impl Pattern {
@@ -3461,7 +3483,7 @@ impl Deref for TypeParams {
 /// A suite represents a [Vec] of [Stmt].
 ///
 /// See: <https://docs.python.org/3/reference/compound_stmts.html#grammar-token-python-grammar-suite>
-pub type Suite = Vec<Stmt>;
+pub type Suite = Vec<Box<Stmt>>;
 
 /// The kind of escape command as defined in [IPython Syntax] in the IPython codebase.
 ///
@@ -3660,11 +3682,11 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn size() {
-        assert_eq!(std::mem::size_of::<Stmt>(), 128);
-        assert_eq!(std::mem::size_of::<StmtFunctionDef>(), 128);
-        assert_eq!(std::mem::size_of::<StmtClassDef>(), 120);
-        assert_eq!(std::mem::size_of::<StmtTry>(), 112);
-        assert_eq!(std::mem::size_of::<Mod>(), 40);
+        assert_eq!(std::mem::size_of::<Stmt>(), 160);
+        assert_eq!(std::mem::size_of::<StmtFunctionDef>(), 144);
+        assert_eq!(std::mem::size_of::<StmtClassDef>(), 136);
+        assert_eq!(std::mem::size_of::<StmtTry>(), 160);
+        assert_eq!(std::mem::size_of::<Mod>(), 56);
         assert_eq!(std::mem::size_of::<Pattern>(), 104);
         assert_eq!(std::mem::size_of::<Expr>(), 80);
         assert_eq!(std::mem::size_of::<ExprAttribute>(), 64);

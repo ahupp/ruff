@@ -163,7 +163,7 @@ fn is_class_method(
 /// A function body is considered to be empty if it contains only `pass` statements, `...` literals,
 /// `NotImplementedError` raises, or string literal statements (docstrings).
 pub fn is_stub(function_def: &StmtFunctionDef, semantic: &SemanticModel) -> bool {
-    function_def.body.iter().all(|stmt| match stmt {
+    function_def.body.as_slice().iter().all(|stmt| match stmt.as_ref() {
         Stmt::Pass(_) => true,
         Stmt::Expr(StmtExpr {
             value,

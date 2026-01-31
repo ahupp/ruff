@@ -66,7 +66,10 @@ pub(crate) fn for_loop_set_mutations(checker: &Checker, for_stmt: &StmtFor) {
     if !for_stmt.orelse.is_empty() {
         return;
     }
-    let [Stmt::Expr(stmt_expr)] = for_stmt.body.as_slice() else {
+    let [stmt] = for_stmt.body.as_slice() else {
+        return;
+    };
+    let Stmt::Expr(stmt_expr) = stmt.as_ref() else {
         return;
     };
     let Expr::Call(expr_call) = stmt_expr.value.as_ref() else {

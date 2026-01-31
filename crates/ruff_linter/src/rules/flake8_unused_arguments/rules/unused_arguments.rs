@@ -385,17 +385,23 @@ pub(crate) fn is_not_implemented_stub_with_variable(
 ) -> bool {
     // Ignore doc-strings.
     let statements = match function_def.body.as_slice() {
-        [Stmt::Expr(StmtExpr { value, .. }), rest @ ..] if value.is_string_literal_expr() => rest,
-        _ => &function_def.body,
+        [stmt, rest @ ..] => match stmt.as_ref() {
+            Stmt::Expr(StmtExpr { value, .. }) if value.is_string_literal_expr() => rest,
+            _ => function_def.body.as_slice(),
+        },
+        _ => function_def.body.as_slice(),
     };
 
-    let [
-        Stmt::Assign(ast::StmtAssign { targets, value, .. }),
-        Stmt::Raise(StmtRaise {
-            exc: Some(exception),
-            ..
-        }),
-    ] = statements
+    let [assign_stmt, raise_stmt] = statements else {
+        return false;
+    };
+    let Stmt::Assign(ast::StmtAssign { targets, value, .. }) = assign_stmt.as_ref() else {
+        return false;
+    };
+    let Stmt::Raise(StmtRaise {
+        exc: Some(exception),
+        ..
+    }) = raise_stmt.as_ref()
     else {
         return false;
     };

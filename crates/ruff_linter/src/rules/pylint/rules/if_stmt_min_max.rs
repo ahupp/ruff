@@ -95,13 +95,14 @@ pub(crate) fn if_stmt_min_max(checker: &Checker, stmt_if: &ast::StmtIf) {
         return;
     }
 
-    let [
-        body @ Stmt::Assign(ast::StmtAssign {
-            targets: body_targets,
-            value: body_value,
-            ..
-        }),
-    ] = body.as_slice()
+    let [body_stmt] = body.as_slice() else {
+        return;
+    };
+    let Stmt::Assign(ast::StmtAssign {
+        targets: body_targets,
+        value: body_value,
+        ..
+    }) = body_stmt.as_ref()
     else {
         return;
     };
@@ -166,7 +167,7 @@ pub(crate) fn if_stmt_min_max(checker: &Checker, stmt_if: &ast::StmtIf) {
     let replacement = format!(
         "{} = {min_max}({}, {})",
         checker.locator().slice(
-            parenthesized_range(body_target.into(), body.into(), checker.tokens())
+            parenthesized_range(body_target.into(), body_stmt.as_ref().into(), checker.tokens())
                 .unwrap_or(body_target.range())
         ),
         checker.locator().slice(arg1),

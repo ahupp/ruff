@@ -174,17 +174,22 @@ pub fn any_member_declaration(
     func: &mut dyn FnMut(ClassMemberDeclaration) -> bool,
 ) -> bool {
     fn any_stmt_in_body(
-        body: &[Stmt],
+        body: &[Box<Stmt>],
         func: &mut dyn FnMut(ClassMemberDeclaration) -> bool,
         boundness: ClassMemberBoundness,
     ) -> bool {
         body.iter().any(|stmt| {
+            let stmt = stmt.as_ref();
             let kind = match stmt {
                 Stmt::FunctionDef(function_def) => Some(ClassMemberKind::FunctionDef(function_def)),
                 Stmt::Assign(assign) => Some(ClassMemberKind::Assign(assign)),
                 Stmt::AnnAssign(assign) => Some(ClassMemberKind::AnnAssign(assign)),
                 Stmt::With(StmtWith { body, .. }) => {
-                    if any_stmt_in_body(body, func, ClassMemberBoundness::PossiblyUnbound) {
+                    if any_stmt_in_body(
+                        body.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    ) {
                         return true;
                     }
 
@@ -193,8 +198,15 @@ pub fn any_member_declaration(
 
                 Stmt::For(StmtFor { body, orelse, .. })
                 | Stmt::While(StmtWhile { body, orelse, .. }) => {
-                    if any_stmt_in_body(body, func, ClassMemberBoundness::PossiblyUnbound)
-                        || any_stmt_in_body(orelse, func, ClassMemberBoundness::PossiblyUnbound)
+                    if any_stmt_in_body(
+                        body.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    ) || any_stmt_in_body(
+                        orelse.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    )
                     {
                         return true;
                     }
@@ -207,9 +219,17 @@ pub fn any_member_declaration(
                     elif_else_clauses,
                     ..
                 }) => {
-                    if any_stmt_in_body(body, func, ClassMemberBoundness::PossiblyUnbound)
+                    if any_stmt_in_body(
+                        body.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    )
                         || elif_else_clauses.iter().any(|it| {
-                            any_stmt_in_body(&it.body, func, ClassMemberBoundness::PossiblyUnbound)
+                            any_stmt_in_body(
+                                it.body.as_slice(),
+                                func,
+                                ClassMemberBoundness::PossiblyUnbound,
+                            )
                         })
                     {
                         return true;
@@ -219,7 +239,11 @@ pub fn any_member_declaration(
 
                 Stmt::Match(StmtMatch { cases, .. }) => {
                     if cases.iter().any(|it| {
-                        any_stmt_in_body(&it.body, func, ClassMemberBoundness::PossiblyUnbound)
+                        any_stmt_in_body(
+                            it.body.as_slice(),
+                            func,
+                            ClassMemberBoundness::PossiblyUnbound,
+                        )
                     }) {
                         return true;
                     }
@@ -234,16 +258,36 @@ pub fn any_member_declaration(
                     finalbody,
                     ..
                 }) => {
-                    if any_stmt_in_body(body, func, ClassMemberBoundness::PossiblyUnbound)
-                        || any_stmt_in_body(orelse, func, ClassMemberBoundness::PossiblyUnbound)
-                        || any_stmt_in_body(finalbody, func, ClassMemberBoundness::PossiblyUnbound)
+                    if any_stmt_in_body(
+                        body.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    ) || any_stmt_in_body(
+                        orelse.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    ) || any_stmt_in_body(
+                        finalbody.as_slice(),
+                        func,
+                        ClassMemberBoundness::PossiblyUnbound,
+                    )
                         || handlers.iter().any(|ExceptHandler::ExceptHandler(it)| {
-                            any_stmt_in_body(&it.body, func, ClassMemberBoundness::PossiblyUnbound)
+                            any_stmt_in_body(
+                                it.body.as_slice(),
+                                func,
+                                ClassMemberBoundness::PossiblyUnbound,
+                            )
                         })
                     {
                         return true;
                     }
 
+                    None
+                }
+                Stmt::BodyStmt(body) => {
+                    if any_stmt_in_body(body.as_slice(), func, boundness) {
+                        return true;
+                    }
                     None
                 }
                 // Technically, a method can be defined using a few more methods:
@@ -287,7 +331,7 @@ pub fn any_member_declaration(
         })
     }
 
-    any_stmt_in_body(&class.body, func, ClassMemberBoundness::Bound)
+    any_stmt_in_body(class.body.as_slice(), func, ClassMemberBoundness::Bound)
 }
 
 /// Return `true` if `class_def` is a class that has one or more enum classes in its mro
@@ -335,15 +379,15 @@ impl IsMetaclass {
 /// ```
 fn has_metaclass_new_signature(class_def: &ast::StmtClassDef, semantic: &SemanticModel) -> bool {
     // Look for a __new__ method in the class body
-    for stmt in &class_def.body {
+    for stmt in class_def.body.as_slice() {
         let ast::Stmt::FunctionDef(ast::StmtFunctionDef {
             name, parameters, ..
-        }) = stmt
+        }) = stmt.as_ref()
         else {
             continue;
         };
 
-        if name != "__new__" {
+        if name.as_str() != "__new__" {
             continue;
         }
 

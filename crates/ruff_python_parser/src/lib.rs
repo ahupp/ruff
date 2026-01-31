@@ -74,7 +74,7 @@ use crate::parser::Parser;
 
 use ruff_python_ast::token::Tokens;
 use ruff_python_ast::{
-    Expr, Mod, ModExpression, ModModule, PySourceType, StringFlags, StringLiteral, Suite,
+    Expr, Mod, ModExpression, ModModule, PySourceType, Stmt, StringFlags, StringLiteral, Suite,
 };
 use ruff_text_size::{Ranged, TextRange};
 
@@ -442,14 +442,14 @@ impl Parsed<Mod> {
 }
 
 impl Parsed<ModModule> {
-    /// Returns the module body contained in this parsed output as a [`Suite`].
-    pub fn suite(&self) -> &Suite {
-        &self.syntax.body
+    /// Returns the module body contained in this parsed output.
+    pub fn suite(&self) -> &[Box<Stmt>] {
+        self.syntax.body.body.as_slice()
     }
 
     /// Consumes the [`Parsed`] output and returns the module body as a [`Suite`].
     pub fn into_suite(self) -> Suite {
-        self.syntax.body
+        self.syntax.body.body
     }
 }
 

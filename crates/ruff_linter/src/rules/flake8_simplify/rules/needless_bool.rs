@@ -341,7 +341,7 @@ impl From<bool> for Bool {
     }
 }
 
-fn is_one_line_return_bool(stmts: &[Stmt]) -> Option<Bool> {
+fn is_one_line_return_bool<S: AsRef<Stmt>>(stmts: &[S]) -> Option<Bool> {
     let [stmt] = stmts else {
         return None;
     };
@@ -349,7 +349,7 @@ fn is_one_line_return_bool(stmts: &[Stmt]) -> Option<Bool> {
         value,
         range: _,
         node_index: _,
-    }) = stmt
+    }) = stmt.as_ref()
     else {
         return None;
     };

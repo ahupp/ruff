@@ -286,28 +286,30 @@ fn match_loop(stmt: &Stmt) -> Option<Loop<'_>> {
 
     // The loop itself should contain a single `if` statement, with a single `return` statement in
     // the body.
-    let [
-        Stmt::If(ast::StmtIf {
-            body: nested_body,
-            test: nested_test,
-            elif_else_clauses: nested_elif_else_clauses,
-            range: _,
-            node_index: _,
-        }),
-    ] = body.as_slice()
+    let [stmt] = body.as_slice() else {
+        return None;
+    };
+    let Stmt::If(ast::StmtIf {
+        body: nested_body,
+        test: nested_test,
+        elif_else_clauses: nested_elif_else_clauses,
+        range: _,
+        node_index: _,
+    }) = stmt.as_ref()
     else {
         return None;
     };
     if !nested_elif_else_clauses.is_empty() {
         return None;
     }
-    let [
-        Stmt::Return(ast::StmtReturn {
-            value: Some(value),
-            range: _,
-            node_index: _,
-        }),
-    ] = nested_body.as_slice()
+    let [stmt] = nested_body.as_slice() else {
+        return None;
+    };
+    let Stmt::Return(ast::StmtReturn {
+        value: Some(value),
+        range: _,
+        node_index: _,
+    }) = stmt.as_ref()
     else {
         return None;
     };

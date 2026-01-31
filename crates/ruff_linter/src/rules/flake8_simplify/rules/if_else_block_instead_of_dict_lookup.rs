@@ -80,13 +80,14 @@ pub(crate) fn if_else_block_instead_of_dict_lookup(checker: &Checker, stmt_if: &
     let Some(literal_expr) = expr.as_literal_expr() else {
         return;
     };
-    let [
-        Stmt::Return(ast::StmtReturn {
-            value,
-            range: _,
-            node_index: _,
-        }),
-    ] = body.as_slice()
+    let [stmt] = body.as_slice() else {
+        return;
+    };
+    let Stmt::Return(ast::StmtReturn {
+        value,
+        range: _,
+        node_index: _,
+    }) = stmt.as_ref()
     else {
         return;
     };
@@ -113,13 +114,14 @@ pub(crate) fn if_else_block_instead_of_dict_lookup(checker: &Checker, stmt_if: &
 
     for clause in elif_else_clauses {
         let ElifElseClause { test, body, .. } = clause;
-        let [
-            Stmt::Return(ast::StmtReturn {
-                value,
-                range: _,
-                node_index: _,
-            }),
-        ] = body.as_slice()
+        let [stmt] = body.as_slice() else {
+            return;
+        };
+        let Stmt::Return(ast::StmtReturn {
+            value,
+            range: _,
+            node_index: _,
+        }) = stmt.as_ref()
         else {
             return;
         };
@@ -128,13 +130,14 @@ pub(crate) fn if_else_block_instead_of_dict_lookup(checker: &Checker, stmt_if: &
             // `else`
             None => {
                 // The else must also be a single effect-free return statement
-                let [
-                    Stmt::Return(ast::StmtReturn {
-                        value,
-                        range: _,
-                        node_index: _,
-                    }),
-                ] = body.as_slice()
+                let [stmt] = body.as_slice() else {
+                    return;
+                };
+                let Stmt::Return(ast::StmtReturn {
+                    value,
+                    range: _,
+                    node_index: _,
+                }) = stmt.as_ref()
                 else {
                     return;
                 };

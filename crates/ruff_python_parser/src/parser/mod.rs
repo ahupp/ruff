@@ -150,7 +150,7 @@ impl<'src> Parser<'src> {
         self.bump(TokenKind::EndOfFile);
 
         ModModule {
-            body,
+            body: self.make_body(body),
             range: TextRange::new(self.start_offset, self.current_token_range().end()),
             node_index: AtomicNodeIndex::NONE,
         }

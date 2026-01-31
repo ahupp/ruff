@@ -27,10 +27,10 @@ mod tests {
         let mut output = String::new();
 
         for (i, stmt) in stmts.into_iter().enumerate() {
-            let func = stmt.as_function_def_stmt().expect(
+            let func = stmt.as_ref().as_function_def_stmt().expect(
                 "Snapshot test for control flow graph should consist only of function definitions",
             );
-            let cfg = build_cfg(&func.body);
+            let cfg = build_cfg(func.body.as_slice());
 
             let mermaid_graph = draw_cfg(cfg, &source);
             writeln!(

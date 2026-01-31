@@ -117,23 +117,25 @@ pub(crate) fn if_else_block_instead_of_if_exp(checker: &Checker, stmt_if: &ast::
     else {
         return;
     };
-    let [
-        Stmt::Assign(ast::StmtAssign {
-            targets: body_targets,
-            value: body_value,
-            ..
-        }),
-    ] = body.as_slice()
+    let [stmt] = body.as_slice() else {
+        return;
+    };
+    let Stmt::Assign(ast::StmtAssign {
+        targets: body_targets,
+        value: body_value,
+        ..
+    }) = stmt.as_ref()
     else {
         return;
     };
-    let [
-        Stmt::Assign(ast::StmtAssign {
-            targets: else_targets,
-            value: else_value,
-            ..
-        }),
-    ] = else_body.as_slice()
+    let [stmt] = else_body.as_slice() else {
+        return;
+    };
+    let Stmt::Assign(ast::StmtAssign {
+        targets: else_targets,
+        value: else_value,
+        ..
+    }) = stmt.as_ref()
     else {
         return;
     };

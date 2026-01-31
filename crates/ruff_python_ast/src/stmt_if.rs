@@ -23,7 +23,7 @@ pub enum BranchKind {
 pub struct IfElifBranch<'a> {
     pub kind: BranchKind,
     pub test: &'a Expr,
-    pub body: &'a [Stmt],
+    pub body: &'a [Box<Stmt>],
     range: TextRange,
 }
 
@@ -34,17 +34,25 @@ impl Ranged for IfElifBranch<'_> {
 }
 
 pub fn if_elif_branches(stmt_if: &StmtIf) -> impl Iterator<Item = IfElifBranch<'_>> {
+    let if_body = stmt_if.body.body.as_slice();
     iter::once(IfElifBranch {
         kind: BranchKind::If,
         test: stmt_if.test.as_ref(),
-        body: stmt_if.body.as_slice(),
-        range: TextRange::new(stmt_if.start(), stmt_if.body.last().unwrap().end()),
+        body: if_body,
+        range: TextRange::new(
+            stmt_if.start(),
+            if_body
+                .last()
+                .map(|stmt| stmt.end())
+                .unwrap_or(stmt_if.end()),
+        ),
     })
     .chain(stmt_if.elif_else_clauses.iter().filter_map(|clause| {
+        let body = clause.body.body.as_slice();
         Some(IfElifBranch {
             kind: BranchKind::Elif,
             test: clause.test.as_ref()?,
-            body: clause.body.as_slice(),
+            body,
             range: clause.range,
         })
     }))

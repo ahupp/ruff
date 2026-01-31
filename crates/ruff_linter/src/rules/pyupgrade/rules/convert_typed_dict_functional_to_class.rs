@@ -182,7 +182,11 @@ fn create_class_def_stmt(
             range: TextRange::default(),
             node_index: ruff_python_ast::AtomicNodeIndex::NONE,
         })),
-        body,
+        body: ruff_python_ast::StmtBody {
+            body: body.into_iter().map(Box::new).collect(),
+            range: TextRange::default(),
+            node_index: ruff_python_ast::AtomicNodeIndex::NONE,
+        },
         type_params: None,
         decorator_list: vec![],
         range: TextRange::default(),

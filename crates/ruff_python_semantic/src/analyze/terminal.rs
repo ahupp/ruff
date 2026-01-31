@@ -24,7 +24,7 @@ pub enum Terminal {
 impl Terminal {
     /// Returns the [`Terminal`] behavior of the function, if it can be determined.
     pub fn from_function(function: &ast::StmtFunctionDef, semantic: &SemanticModel) -> Terminal {
-        Self::from_body(&function.body, semantic)
+        Self::from_body(function.body.as_slice(), semantic)
     }
 
     /// Returns `true` if the [`Terminal`] behavior includes at least one `return` path.
@@ -46,21 +46,21 @@ impl Terminal {
     }
 
     /// Returns the [`Terminal`] behavior of the body, if it can be determined.
-    fn from_body(stmts: &[Stmt], semantic: &SemanticModel) -> Terminal {
+    fn from_body(stmts: &[Box<Stmt>], semantic: &SemanticModel) -> Terminal {
         let mut terminal = Terminal::None;
 
         for stmt in stmts {
-            match stmt {
+            match stmt.as_ref() {
                 Stmt::For(ast::StmtFor { body, orelse, .. })
                 | Stmt::While(ast::StmtWhile { body, orelse, .. }) => {
-                    if always_breaks(body) {
+                    if always_breaks(body.as_slice()) {
                         continue;
                     }
 
-                    terminal = terminal.and_then(Self::from_body(body, semantic));
+                    terminal = terminal.and_then(Self::from_body(body.as_slice(), semantic));
 
-                    if !sometimes_breaks(body, semantic) {
-                        terminal = terminal.and_then(Self::from_body(orelse, semantic));
+                    if !sometimes_breaks(body.as_slice(), semantic) {
+                        terminal = terminal.and_then(Self::from_body(orelse.as_slice(), semantic));
                     }
                 }
                 Stmt::If(ast::StmtIf {
@@ -69,10 +69,10 @@ impl Terminal {
                     ..
                 }) => {
                     let branch_terminal = Terminal::branches(
-                        std::iter::once(Self::from_body(body, semantic)).chain(
+                        std::iter::once(Self::from_body(body.as_slice(), semantic)).chain(
                             elif_else_clauses
                                 .iter()
-                                .map(|clause| Self::from_body(&clause.body, semantic)),
+                                .map(|clause| Self::from_body(clause.body.as_slice(), semantic)),
                         ),
                     );
 
@@ -91,7 +91,7 @@ impl Terminal {
                     let branch_terminal = terminal.and_then(Terminal::branches(
                         cases
                             .iter()
-                            .map(|case| Self::from_body(&case.body, semantic)),
+                            .map(|case| Self::from_body(case.body.as_slice(), semantic)),
                     ));
 
                     // If the `match` is known to be exhaustive (by way of including a wildcard
@@ -118,24 +118,24 @@ impl Terminal {
                     // that _any_ statement in the body could raise an exception, so we don't
                     // consider the body to be exhaustive. In other words, we assume the exception
                     // handlers exist for a reason.
-                    let body_terminal = Self::from_body(body, semantic);
+                    let body_terminal = Self::from_body(body.as_slice(), semantic);
                     if body_terminal.has_any_return() {
                         terminal = terminal.and_then(Terminal::ConditionalReturn);
                     }
 
                     // If the `finally` block returns, the `try` block must also return. (Similarly,
                     // if the `finally` block raises, the `try` block must also raise.)
-                    terminal = terminal.and_then(Self::from_body(finalbody, semantic));
+                    terminal = terminal.and_then(Self::from_body(finalbody.as_slice(), semantic));
 
                     let branch_terminal = Terminal::branches(handlers.iter().map(|handler| {
                         let ExceptHandler::ExceptHandler(ast::ExceptHandlerExceptHandler {
                             body,
                             ..
                         }) = handler;
-                        Self::from_body(body, semantic)
+                        Self::from_body(body.as_slice(), semantic)
                     }));
 
-                    if orelse.is_empty() {
+                    if orelse.as_slice().is_empty() {
                         // If there's no `else`, we may fall through, so only mark that this can't
                         // be a non-returning function if any of the branches return.
                         if branch_terminal.has_any_return() {
@@ -145,12 +145,13 @@ impl Terminal {
                         // If there's an `else`, we won't fall through. If all the handlers and
                         // the `else` block return,, the `try` block also returns.
                         terminal = terminal.and_then(
-                            branch_terminal.branch(Terminal::from_body(orelse, semantic)),
+                            branch_terminal
+                                .branch(Terminal::from_body(orelse.as_slice(), semantic)),
                         );
                     }
                 }
                 Stmt::With(ast::StmtWith { body, .. }) => {
-                    terminal = terminal.and_then(Self::from_body(body, semantic));
+                    terminal = terminal.and_then(Self::from_body(body.as_slice(), semantic));
                 }
                 Stmt::Return(_) => {
                     terminal = terminal.and_then(Terminal::RaiseOrReturn);
@@ -167,6 +168,9 @@ impl Terminal {
                     } else {
                         terminal = terminal.and_then(Terminal::Raise);
                     }
+                }
+                Stmt::BodyStmt(body) => {
+                    terminal = terminal.and_then(Self::from_body(body.as_slice(), semantic));
                 }
                 _ => {}
             }
@@ -287,22 +291,22 @@ impl Terminal {
 }
 
 /// Returns `true` if the body may break via a `break` statement.
-fn sometimes_breaks(stmts: &[Stmt], semantic: &SemanticModel) -> bool {
+fn sometimes_breaks(stmts: &[Box<Stmt>], semantic: &SemanticModel) -> bool {
     for stmt in stmts {
-        match stmt {
+        match stmt.as_ref() {
             Stmt::For(ast::StmtFor { body, orelse, .. }) => {
-                if Terminal::from_body(body, semantic).has_any_return() {
+                if Terminal::from_body(body.as_slice(), semantic).has_any_return() {
                     return false;
                 }
-                if sometimes_breaks(orelse, semantic) {
+                if sometimes_breaks(orelse.as_slice(), semantic) {
                     return true;
                 }
             }
             Stmt::While(ast::StmtWhile { body, orelse, .. }) => {
-                if Terminal::from_body(body, semantic).has_any_return() {
+                if Terminal::from_body(body.as_slice(), semantic).has_any_return() {
                     return false;
                 }
-                if sometimes_breaks(orelse, semantic) {
+                if sometimes_breaks(orelse.as_slice(), semantic) {
                     return true;
                 }
             }
@@ -313,7 +317,7 @@ fn sometimes_breaks(stmts: &[Stmt], semantic: &SemanticModel) -> bool {
             }) => {
                 if std::iter::once(body)
                     .chain(elif_else_clauses.iter().map(|clause| &clause.body))
-                    .any(|body| sometimes_breaks(body, semantic))
+                    .any(|body| sometimes_breaks(body.as_slice(), semantic))
                 {
                     return true;
                 }
@@ -321,7 +325,7 @@ fn sometimes_breaks(stmts: &[Stmt], semantic: &SemanticModel) -> bool {
             Stmt::Match(ast::StmtMatch { cases, .. }) => {
                 if cases
                     .iter()
-                    .any(|case| sometimes_breaks(&case.body, semantic))
+                    .any(|case| sometimes_breaks(case.body.as_slice(), semantic))
                 {
                     return true;
                 }
@@ -333,22 +337,27 @@ fn sometimes_breaks(stmts: &[Stmt], semantic: &SemanticModel) -> bool {
                 finalbody,
                 ..
             }) => {
-                if sometimes_breaks(body, semantic)
+                if sometimes_breaks(body.as_slice(), semantic)
                     || handlers.iter().any(|handler| {
                         let ExceptHandler::ExceptHandler(ast::ExceptHandlerExceptHandler {
                             body,
                             ..
                         }) = handler;
-                        sometimes_breaks(body, semantic)
+                        sometimes_breaks(body.as_slice(), semantic)
                     })
-                    || sometimes_breaks(orelse, semantic)
-                    || sometimes_breaks(finalbody, semantic)
+                    || sometimes_breaks(orelse.as_slice(), semantic)
+                    || sometimes_breaks(finalbody.as_slice(), semantic)
                 {
                     return true;
                 }
             }
             Stmt::With(ast::StmtWith { body, .. }) => {
-                if sometimes_breaks(body, semantic) {
+                if sometimes_breaks(body.as_slice(), semantic) {
+                    return true;
+                }
+            }
+            Stmt::BodyStmt(body) => {
+                if sometimes_breaks(body.as_slice(), semantic) {
                     return true;
                 }
             }
@@ -362,12 +371,17 @@ fn sometimes_breaks(stmts: &[Stmt], semantic: &SemanticModel) -> bool {
 }
 
 /// Returns `true` if the body may break via a `break` statement.
-fn always_breaks(stmts: &[Stmt]) -> bool {
+fn always_breaks(stmts: &[Box<Stmt>]) -> bool {
     for stmt in stmts {
-        match stmt {
+        match stmt.as_ref() {
             Stmt::Break(_) => return true,
             Stmt::Return(_) => return false,
             Stmt::Raise(_) => return false,
+            Stmt::BodyStmt(body) => {
+                if always_breaks(body.as_slice()) {
+                    return true;
+                }
+            }
             _ => {}
         }
     }

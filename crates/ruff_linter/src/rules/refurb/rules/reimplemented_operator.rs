@@ -179,7 +179,10 @@ impl FunctionLike<'_> {
         match self {
             Self::Lambda(expr) => Some(&expr.body),
             Self::Function(stmt) => match stmt.body.as_slice() {
-                [Stmt::Return(ast::StmtReturn { value, .. })] => value.as_deref(),
+                [stmt] => match stmt.as_ref() {
+                    Stmt::Return(ast::StmtReturn { value, .. }) => value.as_deref(),
+                    _ => None,
+                },
                 _ => None,
             },
         }

@@ -66,7 +66,7 @@ pub(crate) fn async_busy_wait(checker: &Checker, while_stmt: &ast::StmtWhile) {
     let [stmt] = while_stmt.body.as_slice() else {
         return;
     };
-    let Stmt::Expr(ast::StmtExpr { value, .. }) = stmt else {
+    let Stmt::Expr(ast::StmtExpr { value, .. }) = stmt.as_ref() else {
         return;
     };
     let Expr::Await(ast::ExprAwait { value, .. }) = value.as_ref() else {

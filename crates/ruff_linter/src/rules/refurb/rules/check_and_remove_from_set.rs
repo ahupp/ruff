@@ -145,7 +145,10 @@ fn match_check(if_stmt: &ast::StmtIf) -> Option<(&Expr, &ast::ExprName)> {
 
 /// Match `if` body to be `name.remove(expr)`, returns a tuple of (`expr`, `name`) on success.
 fn match_remove(if_stmt: &ast::StmtIf) -> Option<(&Expr, &ast::ExprName)> {
-    let [Stmt::Expr(ast::StmtExpr { value: expr, .. })] = if_stmt.body.as_slice() else {
+    let [stmt] = if_stmt.body.as_slice() else {
+        return None;
+    };
+    let Stmt::Expr(ast::StmtExpr { value: expr, .. }) = stmt.as_ref() else {
         return None;
     };
 

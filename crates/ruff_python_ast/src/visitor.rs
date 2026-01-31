@@ -7,8 +7,8 @@ use crate::{
     self as ast, Alias, AnyParameterRef, Arguments, BoolOp, BytesLiteral, CmpOp, Comprehension,
     Decorator, ElifElseClause, ExceptHandler, Expr, ExprContext, FString, FStringPart,
     InterpolatedStringElement, Keyword, MatchCase, Operator, Parameter, Parameters, Pattern,
-    PatternArguments, PatternKeyword, Stmt, StringLiteral, TString, TypeParam, TypeParamParamSpec,
-    TypeParamTypeVar, TypeParamTypeVarTuple, TypeParams, UnaryOp, WithItem,
+    PatternArguments, PatternKeyword, Stmt, StmtBody, StringLiteral, TString, TypeParam,
+    TypeParamParamSpec, TypeParamTypeVar, TypeParamTypeVarTuple, TypeParams, UnaryOp, WithItem,
 };
 
 /// A trait for AST visitors. Visits all nodes in the AST recursively in evaluation-order.
@@ -90,7 +90,7 @@ pub trait Visitor<'a> {
     fn visit_pattern_keyword(&mut self, pattern_keyword: &'a PatternKeyword) {
         walk_pattern_keyword(self, pattern_keyword);
     }
-    fn visit_body(&mut self, body: &'a [Stmt]) {
+    fn visit_body(&mut self, body: &'a StmtBody) {
         walk_body(self, body);
     }
     fn visit_elif_else_clause(&mut self, elif_else_clause: &'a ElifElseClause) {
@@ -116,9 +116,9 @@ pub trait Visitor<'a> {
     }
 }
 
-pub fn walk_body<'a, V: Visitor<'a> + ?Sized>(visitor: &mut V, body: &'a [Stmt]) {
-    for stmt in body {
-        visitor.visit_stmt(stmt);
+pub fn walk_body<'a, V: Visitor<'a> + ?Sized>(visitor: &mut V, body: &'a StmtBody) {
+    for stmt in &body.body {
+        visitor.visit_stmt(stmt.as_ref());
     }
 }
 
@@ -349,6 +349,11 @@ pub fn walk_stmt<'a, V: Visitor<'a> + ?Sized>(visitor: &mut V, stmt: &'a Stmt) {
             range: _,
             node_index: _,
         }) => visitor.visit_expr(value),
+        Stmt::BodyStmt(ast::StmtBody { body, .. }) => {
+            for stmt in body {
+                visitor.visit_stmt(stmt);
+            }
+        }
         Stmt::Pass(_) | Stmt::Break(_) | Stmt::Continue(_) | Stmt::IpyEscapeCommand(_) => {}
     }
 }

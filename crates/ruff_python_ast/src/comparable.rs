@@ -302,7 +302,7 @@ impl<'a> From<&'a Box<ast::Pattern>> for Box<ComparablePattern<'a>> {
 pub struct ComparableMatchCase<'a> {
     pattern: ComparablePattern<'a>,
     guard: Option<ComparableExpr<'a>>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 impl<'a> From<&'a ast::MatchCase> for ComparableMatchCase<'a> {
@@ -310,7 +310,7 @@ impl<'a> From<&'a ast::MatchCase> for ComparableMatchCase<'a> {
         Self {
             pattern: (&match_case.pattern).into(),
             guard: match_case.guard.as_ref().map(Into::into),
-            body: match_case.body.iter().map(Into::into).collect(),
+            body: Box::new((&match_case.body).into()),
         }
     }
 }
@@ -487,7 +487,7 @@ impl<'a> From<&'a ast::Comprehension> for ComparableComprehension<'a> {
 pub struct ExceptHandlerExceptHandler<'a> {
     type_: Option<Box<ComparableExpr<'a>>>,
     name: Option<&'a str>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -506,7 +506,7 @@ impl<'a> From<&'a ast::ExceptHandler> for ComparableExceptHandler<'a> {
         Self::ExceptHandler(ExceptHandlerExceptHandler {
             type_: type_.as_ref().map(Into::into),
             name: name.as_deref(),
-            body: body.iter().map(Into::into).collect(),
+            body: Box::new(body.into()),
         })
     }
 }
@@ -570,7 +570,7 @@ impl<'a> From<&'a ast::InterpolatedElement> for ComparableInterpolatedStringElem
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ComparableElifElseClause<'a> {
     test: Option<ComparableExpr<'a>>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 impl<'a> From<&'a ast::ElifElseClause> for ComparableElifElseClause<'a> {
@@ -583,7 +583,7 @@ impl<'a> From<&'a ast::ElifElseClause> for ComparableElifElseClause<'a> {
         } = elif_else_clause;
         Self {
             test: test.as_ref().map(Into::into),
-            body: body.iter().map(Into::into).collect(),
+            body: Box::new(body.into()),
         }
     }
 }
@@ -1341,7 +1341,7 @@ pub struct StmtFunctionDef<'a> {
     type_params: Option<ComparableTypeParams<'a>>,
     parameters: ComparableParameters<'a>,
     returns: Option<ComparableExpr<'a>>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -1350,7 +1350,7 @@ pub struct StmtClassDef<'a> {
     name: &'a str,
     type_params: Option<ComparableTypeParams<'a>>,
     arguments: ComparableArguments<'a>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -1477,21 +1477,21 @@ pub struct StmtFor<'a> {
     is_async: bool,
     target: ComparableExpr<'a>,
     iter: ComparableExpr<'a>,
-    body: Vec<ComparableStmt<'a>>,
-    orelse: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
+    orelse: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct StmtWhile<'a> {
     test: ComparableExpr<'a>,
-    body: Vec<ComparableStmt<'a>>,
-    orelse: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
+    orelse: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct StmtIf<'a> {
     test: ComparableExpr<'a>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
     elif_else_clauses: Vec<ComparableElifElseClause<'a>>,
 }
 
@@ -1499,7 +1499,7 @@ pub struct StmtIf<'a> {
 pub struct StmtWith<'a> {
     is_async: bool,
     items: Vec<ComparableWithItem<'a>>,
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -1516,10 +1516,10 @@ pub struct StmtRaise<'a> {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct StmtTry<'a> {
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
     handlers: Vec<ComparableExceptHandler<'a>>,
-    orelse: Vec<ComparableStmt<'a>>,
-    finalbody: Vec<ComparableStmt<'a>>,
+    orelse: Box<ComparableStmt<'a>>,
+    finalbody: Box<ComparableStmt<'a>>,
     is_star: bool,
 }
 
@@ -1563,6 +1563,11 @@ pub struct StmtIpyEscapeCommand<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
+pub struct StmtBody<'a> {
+    body: Vec<Box<ComparableStmt<'a>>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ComparableStmt<'a> {
     FunctionDef(StmtFunctionDef<'a>),
     ClassDef(StmtClassDef<'a>),
@@ -1589,6 +1594,25 @@ pub enum ComparableStmt<'a> {
     Pass,
     Break,
     Continue,
+    BodyStmt(StmtBody<'a>),
+}
+
+impl<'a> From<&'a ast::StmtBody> for StmtBody<'a> {
+    fn from(body: &'a ast::StmtBody) -> Self {
+        Self {
+            body: body
+                .body
+                .iter()
+                .map(|stmt| Box::new(stmt.as_ref().into()))
+                .collect(),
+        }
+    }
+}
+
+impl<'a> From<&'a ast::StmtBody> for ComparableStmt<'a> {
+    fn from(body: &'a ast::StmtBody) -> Self {
+        Self::BodyStmt(body.into())
+    }
 }
 
 impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
@@ -1608,7 +1632,7 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
                 is_async: *is_async,
                 name: name.as_str(),
                 parameters: parameters.into(),
-                body: body.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
                 decorator_list: decorator_list.iter().map(Into::into).collect(),
                 returns: returns.as_ref().map(Into::into),
                 type_params: type_params.as_ref().map(Into::into),
@@ -1624,7 +1648,7 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
             }) => Self::ClassDef(StmtClassDef {
                 name: name.as_str(),
                 arguments: arguments.as_ref().map(Into::into).unwrap_or_default(),
-                body: body.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
                 decorator_list: decorator_list.iter().map(Into::into).collect(),
                 type_params: type_params.as_ref().map(Into::into),
             }),
@@ -1698,8 +1722,8 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
                 is_async: *is_async,
                 target: target.into(),
                 iter: iter.into(),
-                body: body.iter().map(Into::into).collect(),
-                orelse: orelse.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
+                orelse: Box::new(orelse.into()),
             }),
             ast::Stmt::While(ast::StmtWhile {
                 test,
@@ -1709,8 +1733,8 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
                 node_index: _,
             }) => Self::While(StmtWhile {
                 test: test.into(),
-                body: body.iter().map(Into::into).collect(),
-                orelse: orelse.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
+                orelse: Box::new(orelse.into()),
             }),
             ast::Stmt::If(ast::StmtIf {
                 test,
@@ -1720,7 +1744,7 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
                 node_index: _,
             }) => Self::If(StmtIf {
                 test: test.into(),
-                body: body.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
                 elif_else_clauses: elif_else_clauses.iter().map(Into::into).collect(),
             }),
             ast::Stmt::With(ast::StmtWith {
@@ -1732,7 +1756,7 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
             }) => Self::With(StmtWith {
                 is_async: *is_async,
                 items: items.iter().map(Into::into).collect(),
-                body: body.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
             }),
             ast::Stmt::Match(ast::StmtMatch {
                 subject,
@@ -1761,10 +1785,10 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
                 range: _,
                 node_index: _,
             }) => Self::Try(StmtTry {
-                body: body.iter().map(Into::into).collect(),
+                body: Box::new(body.into()),
                 handlers: handlers.iter().map(Into::into).collect(),
-                orelse: orelse.iter().map(Into::into).collect(),
-                finalbody: finalbody.iter().map(Into::into).collect(),
+                orelse: Box::new(orelse.into()),
+                finalbody: Box::new(finalbody.into()),
                 is_star: *is_star,
             }),
             ast::Stmt::Assert(ast::StmtAssert {
@@ -1824,6 +1848,7 @@ impl<'a> From<&'a ast::Stmt> for ComparableStmt<'a> {
             ast::Stmt::Pass(_) => Self::Pass,
             ast::Stmt::Break(_) => Self::Break,
             ast::Stmt::Continue(_) => Self::Continue,
+            ast::Stmt::BodyStmt(body) => Self::BodyStmt(body.into()),
         }
     }
 }
@@ -1836,7 +1861,7 @@ pub enum ComparableMod<'a> {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ComparableModModule<'a> {
-    body: Vec<ComparableStmt<'a>>,
+    body: Box<ComparableStmt<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -1856,7 +1881,7 @@ impl<'a> From<&'a ast::Mod> for ComparableMod<'a> {
 impl<'a> From<&'a ast::ModModule> for ComparableModModule<'a> {
     fn from(module: &'a ast::ModModule) -> Self {
         Self {
-            body: module.body.iter().map(Into::into).collect(),
+            body: Box::new((&module.body).into()),
         }
     }
 }

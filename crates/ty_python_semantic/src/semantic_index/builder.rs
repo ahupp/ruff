@@ -1916,17 +1916,22 @@ impl<'ast> Visitor<'ast> for SemanticIndexBuilder<'_, 'ast> {
                 let elif_else_clauses = node
                     .elif_else_clauses
                     .iter()
-                    .map(|clause| (clause.test.as_ref(), clause.body.as_slice()));
+                    .map(|clause| (clause.test.as_ref(), &clause.body));
                 let has_else = node
                     .elif_else_clauses
                     .last()
                     .is_some_and(|clause| clause.test.is_none());
+                let empty_body = ast::StmtBody {
+                    body: Vec::new(),
+                    range: TextRange::default(),
+                    node_index: ast::AtomicNodeIndex::NONE,
+                };
                 let elif_else_clauses = elif_else_clauses.chain(if has_else {
                     // if there's an `else` clause already, we don't need to add another
                     None
                 } else {
                     // if there's no `else` branch, we should add a no-op `else` branch
-                    Some((None, Default::default()))
+                    Some((None, &empty_body))
                 });
 
                 for (clause_test, clause_body) in elif_else_clauses {

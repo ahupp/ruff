@@ -143,7 +143,10 @@ fn is_exception_check(stmt: &Stmt) -> bool {
     let Stmt::If(ast::StmtIf { body, .. }) = stmt else {
         return false;
     };
-    matches!(body.as_slice(), [Stmt::Raise(_)])
+    matches!(
+        body.as_slice(),
+        [stmt] if matches!(stmt.as_ref(), Stmt::Raise(_))
+    )
 }
 
 /// SIM201

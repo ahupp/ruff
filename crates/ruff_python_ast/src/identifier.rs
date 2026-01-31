@@ -118,12 +118,17 @@ pub fn else_(stmt: &Stmt, source: &str) -> Option<TextRange> {
         return None;
     };
 
-    if orelse.is_empty() {
+    let orelse_body = orelse.body.as_slice();
+    if orelse_body.is_empty() {
         return None;
     }
 
+    let body = body.body.as_slice();
     IdentifierTokenizer::starts_at(
-        body.last().expect("Expected body to be non-empty").end(),
+        body.last()
+            .expect("Expected body to be non-empty")
+            .as_ref()
+            .end(),
         source,
     )
     .next()

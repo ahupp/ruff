@@ -54,7 +54,7 @@ pub enum ModuleKind {
 pub struct Module<'a> {
     pub kind: ModuleKind,
     pub source: ModuleSource<'a>,
-    pub python_ast: &'a [Stmt],
+    pub python_ast: &'a [Box<Stmt>],
     pub name: Option<&'a str>,
 }
 
@@ -108,13 +108,13 @@ impl<'a> Member<'a> {
     }
 
     /// Return the body of the member.
-    pub fn body(&self) -> &'a [Stmt] {
+    pub fn body(&self) -> &'a [Box<Stmt>] {
         match self.kind {
-            MemberKind::Class(class) => &class.body,
-            MemberKind::NestedClass(class) => &class.body,
-            MemberKind::Function(function) => &function.body,
-            MemberKind::NestedFunction(function) => &function.body,
-            MemberKind::Method(method) => &method.body,
+            MemberKind::Class(class) => class.body.as_slice(),
+            MemberKind::NestedClass(class) => class.body.as_slice(),
+            MemberKind::Function(function) => function.body.as_slice(),
+            MemberKind::NestedFunction(function) => function.body.as_slice(),
+            MemberKind::Method(method) => method.body.as_slice(),
         }
     }
 }
@@ -281,7 +281,7 @@ impl<'a> Definitions<'a> {
     }
 
     /// Returns a reference to the Python AST.
-    pub fn python_ast(&self) -> Option<&'a [Stmt]> {
+    pub fn python_ast(&self) -> Option<&'a [Box<Stmt>]> {
         let module = self[DefinitionId::module()].as_module()?;
         Some(module.python_ast)
     }

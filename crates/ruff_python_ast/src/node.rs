@@ -3,7 +3,7 @@ use ruff_text_size::Ranged;
 use crate::visitor::source_order::SourceOrderVisitor;
 use crate::{
     self as ast, Alias, AnyNodeRef, AnyParameterRef, ArgOrKeyword, MatchCase, PatternArguments,
-    PatternKeyword,
+    PatternKeyword, Stmt,
 };
 
 impl ast::ElifElseClause {
@@ -604,59 +604,64 @@ impl<'a> AnyNodeRef<'a> {
 
     /// The last child of the last branch, if the node has multiple branches.
     pub fn last_child_in_body(&self) -> Option<AnyNodeRef<'a>> {
-        let body =
-            match self {
-                AnyNodeRef::StmtFunctionDef(ast::StmtFunctionDef { body, .. })
-                | AnyNodeRef::StmtClassDef(ast::StmtClassDef { body, .. })
-                | AnyNodeRef::StmtWith(ast::StmtWith { body, .. })
-                | AnyNodeRef::MatchCase(MatchCase { body, .. })
-                | AnyNodeRef::ExceptHandlerExceptHandler(ast::ExceptHandlerExceptHandler {
-                    body,
-                    ..
-                })
-                | AnyNodeRef::ElifElseClause(ast::ElifElseClause { body, .. }) => body,
-                AnyNodeRef::StmtIf(ast::StmtIf {
-                    body,
-                    elif_else_clauses,
-                    ..
-                }) => elif_else_clauses.last().map_or(body, |clause| &clause.body),
-
-                AnyNodeRef::StmtFor(ast::StmtFor { body, orelse, .. })
-                | AnyNodeRef::StmtWhile(ast::StmtWhile { body, orelse, .. }) => {
-                    if orelse.is_empty() { body } else { orelse }
-                }
-
-                AnyNodeRef::StmtMatch(ast::StmtMatch { cases, .. }) => {
-                    return cases.last().map(AnyNodeRef::from);
-                }
-
-                AnyNodeRef::StmtTry(ast::StmtTry {
-                    body,
-                    handlers,
-                    orelse,
-                    finalbody,
-                    ..
-                }) => {
-                    if finalbody.is_empty() {
-                        if orelse.is_empty() {
-                            if handlers.is_empty() {
-                                body
-                            } else {
-                                return handlers.last().map(AnyNodeRef::from);
-                            }
+        let body = match self {
+            AnyNodeRef::StmtFunctionDef(ast::StmtFunctionDef { body, .. })
+            | AnyNodeRef::StmtClassDef(ast::StmtClassDef { body, .. })
+            | AnyNodeRef::StmtWith(ast::StmtWith { body, .. })
+            | AnyNodeRef::MatchCase(MatchCase { body, .. })
+            | AnyNodeRef::ExceptHandlerExceptHandler(ast::ExceptHandlerExceptHandler { body, .. })
+            | AnyNodeRef::ElifElseClause(ast::ElifElseClause { body, .. }) => {
+                Some(stmt_body_slice(body))
+            }
+            AnyNodeRef::StmtIf(ast::StmtIf {
+                body,
+                elif_else_clauses,
+                ..
+            }) => {
+                let body = elif_else_clauses
+                    .last()
+                    .map(|clause| &clause.body)
+                    .unwrap_or(body);
+                Some(stmt_body_slice(body))
+            }
+            AnyNodeRef::StmtFor(ast::StmtFor { body, orelse, .. })
+            | AnyNodeRef::StmtWhile(ast::StmtWhile { body, orelse, .. }) => {
+                let body = if stmt_body_is_empty(orelse) {
+                    body
+                } else {
+                    orelse
+                };
+                Some(stmt_body_slice(body))
+            }
+            AnyNodeRef::StmtMatch(ast::StmtMatch { cases, .. }) => {
+                return cases.last().map(AnyNodeRef::from);
+            }
+            AnyNodeRef::StmtTry(ast::StmtTry {
+                body,
+                handlers,
+                orelse,
+                finalbody,
+                ..
+            }) => {
+                let body = if stmt_body_is_empty(finalbody) {
+                    if stmt_body_is_empty(orelse) {
+                        if handlers.is_empty() {
+                            body
                         } else {
-                            orelse
+                            return handlers.last().map(AnyNodeRef::from);
                         }
                     } else {
-                        finalbody
+                        orelse
                     }
-                }
+                } else {
+                    finalbody
+                };
+                Some(stmt_body_slice(body))
+            }
+            _ => return None,
+        };
 
-                // Not a node that contains an indented child node.
-                _ => return None,
-            };
-
-        body.last().map(AnyNodeRef::from)
+        body.and_then(|body| body.last().map(|stmt| AnyNodeRef::from(stmt.as_ref())))
     }
 
     /// Check if the given statement is the first statement after the colon of a branch, be it in if
@@ -704,7 +709,8 @@ impl<'a> AnyNodeRef<'a> {
         match body {
             AnyNodeRef::StmtFor(ast::StmtFor { body, orelse, .. })
             | AnyNodeRef::StmtWhile(ast::StmtWhile { body, orelse, .. }) => {
-                are_same_optional(*self, body.first()) || are_same_optional(*self, orelse.first())
+                are_same_optional(*self, stmt_body_first(body))
+                    || are_same_optional(*self, stmt_body_first(orelse))
             }
 
             AnyNodeRef::StmtTry(ast::StmtTry {
@@ -713,9 +719,9 @@ impl<'a> AnyNodeRef<'a> {
                 finalbody,
                 ..
             }) => {
-                are_same_optional(*self, body.first())
-                    || are_same_optional(*self, orelse.first())
-                    || are_same_optional(*self, finalbody.first())
+                are_same_optional(*self, stmt_body_first(body))
+                    || are_same_optional(*self, stmt_body_first(orelse))
+                    || are_same_optional(*self, stmt_body_first(finalbody))
             }
 
             AnyNodeRef::StmtIf(ast::StmtIf { body, .. })
@@ -728,7 +734,7 @@ impl<'a> AnyNodeRef<'a> {
             | AnyNodeRef::MatchCase(MatchCase { body, .. })
             | AnyNodeRef::StmtFunctionDef(ast::StmtFunctionDef { body, .. })
             | AnyNodeRef::StmtClassDef(ast::StmtClassDef { body, .. }) => {
-                are_same_optional(*self, body.first())
+                are_same_optional(*self, stmt_body_first(body))
             }
 
             AnyNodeRef::StmtMatch(ast::StmtMatch { cases, .. }) => {
@@ -744,7 +750,7 @@ impl<'a> AnyNodeRef<'a> {
         match body {
             AnyNodeRef::StmtFor(ast::StmtFor { orelse, .. })
             | AnyNodeRef::StmtWhile(ast::StmtWhile { orelse, .. }) => {
-                are_same_optional(*self, orelse.first())
+                are_same_optional(*self, stmt_body_first(orelse))
             }
 
             AnyNodeRef::StmtTry(ast::StmtTry {
@@ -754,8 +760,8 @@ impl<'a> AnyNodeRef<'a> {
                 ..
             }) => {
                 are_same_optional(*self, handlers.first())
-                    || are_same_optional(*self, orelse.first())
-                    || are_same_optional(*self, finalbody.first())
+                    || are_same_optional(*self, stmt_body_first(orelse))
+                    || are_same_optional(*self, stmt_body_first(finalbody))
             }
 
             AnyNodeRef::StmtIf(ast::StmtIf {
@@ -764,6 +770,20 @@ impl<'a> AnyNodeRef<'a> {
             _ => false,
         }
     }
+}
+
+fn stmt_body_slice(body: &ast::StmtBody) -> &[Box<Stmt>] {
+    &body.body
+}
+
+fn stmt_body_is_empty(body: &ast::StmtBody) -> bool {
+    stmt_body_slice(body).is_empty()
+}
+
+fn stmt_body_first(body: &ast::StmtBody) -> Option<AnyNodeRef<'_>> {
+    stmt_body_slice(body)
+        .first()
+        .map(|stmt| AnyNodeRef::from(stmt.as_ref()))
 }
 
 /// Returns `true` if `right` is `Some` and `left` and `right` are referentially equal.

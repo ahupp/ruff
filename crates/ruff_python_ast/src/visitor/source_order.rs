@@ -2,7 +2,7 @@ use crate::{
     Alias, Arguments, BoolOp, BytesLiteral, CmpOp, Comprehension, Decorator, ElifElseClause,
     ExceptHandler, Expr, FString, InterpolatedStringElement, Keyword, MatchCase, Mod, Operator,
     Parameter, ParameterWithDefault, Parameters, Pattern, PatternArguments, PatternKeyword,
-    Singleton, Stmt, StringLiteral, TString, TypeParam, TypeParams, UnaryOp, WithItem,
+    Singleton, Stmt, StmtBody, StringLiteral, TString, TypeParam, TypeParams, UnaryOp, WithItem,
 };
 use crate::{AnyNodeRef, Identifier};
 
@@ -142,7 +142,7 @@ pub trait SourceOrderVisitor<'a> {
     }
 
     #[inline]
-    fn visit_body(&mut self, body: &'a [Stmt]) {
+    fn visit_body(&mut self, body: &'a StmtBody) {
         walk_body(self, body);
     }
 
@@ -200,12 +200,12 @@ where
     visitor.leave_node(node);
 }
 
-pub fn walk_body<'a, V>(visitor: &mut V, body: &'a [Stmt])
+pub fn walk_body<'a, V>(visitor: &mut V, body: &'a StmtBody)
 where
     V: SourceOrderVisitor<'a> + ?Sized,
 {
-    for stmt in body {
-        visitor.visit_stmt(stmt);
+    for stmt in &body.body {
+        visitor.visit_stmt(stmt.as_ref());
     }
 }
 

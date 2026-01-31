@@ -147,6 +147,7 @@ pub enum Stmt {
     Pass(crate::StmtPass),
     Break(crate::StmtBreak),
     Continue(crate::StmtContinue),
+    BodyStmt(crate::StmtBody),
     IpyEscapeCommand(crate::StmtIpyEscapeCommand),
 }
 
@@ -294,6 +295,12 @@ impl From<crate::StmtContinue> for Stmt {
     }
 }
 
+impl From<crate::StmtBody> for Stmt {
+    fn from(node: crate::StmtBody) -> Self {
+        Self::BodyStmt(node)
+    }
+}
+
 impl From<crate::StmtIpyEscapeCommand> for Stmt {
     fn from(node: crate::StmtIpyEscapeCommand) -> Self {
         Self::IpyEscapeCommand(node)
@@ -328,6 +335,7 @@ impl ruff_text_size::Ranged for Stmt {
             Self::Break(node) => node.range(),
             Self::Continue(node) => node.range(),
             Self::IpyEscapeCommand(node) => node.range(),
+            Self::BodyStmt(node) => node.range(),
         }
     }
 }
@@ -360,6 +368,7 @@ impl crate::HasNodeIndex for Stmt {
             Self::Break(node) => node.node_index(),
             Self::Continue(node) => node.node_index(),
             Self::IpyEscapeCommand(node) => node.node_index(),
+            Self::BodyStmt(node) => node.node_index(),
         }
     }
 }
@@ -1250,6 +1259,43 @@ impl Stmt {
     pub fn as_continue_stmt(&self) -> Option<&crate::StmtContinue> {
         match self {
             Self::Continue(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub const fn is_body_stmt_stmt(&self) -> bool {
+        matches!(self, Self::BodyStmt(_))
+    }
+
+    #[inline]
+    pub fn body_stmt_stmt(self) -> Option<crate::StmtBody> {
+        match self {
+            Self::BodyStmt(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn expect_body_stmt_stmt(self) -> crate::StmtBody {
+        match self {
+            Self::BodyStmt(val) => val,
+            _ => panic!("called expect on {self:?}"),
+        }
+    }
+
+    #[inline]
+    pub fn as_body_stmt_stmt_mut(&mut self) -> Option<&mut crate::StmtBody> {
+        match self {
+            Self::BodyStmt(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn as_body_stmt_stmt(&self) -> Option<&crate::StmtBody> {
+        match self {
+            Self::BodyStmt(val) => Some(val),
             _ => None,
         }
     }
@@ -3720,6 +3766,12 @@ impl ruff_text_size::Ranged for crate::StmtContinue {
     }
 }
 
+impl ruff_text_size::Ranged for crate::StmtBody {
+    fn range(&self) -> ruff_text_size::TextRange {
+        self.range
+    }
+}
+
 impl ruff_text_size::Ranged for crate::StmtIpyEscapeCommand {
     fn range(&self) -> ruff_text_size::TextRange {
         self.range
@@ -4284,6 +4336,12 @@ impl crate::HasNodeIndex for crate::StmtContinue {
     }
 }
 
+impl crate::HasNodeIndex for crate::StmtBody {
+    fn node_index(&self) -> &crate::AtomicNodeIndex {
+        &self.node_index
+    }
+}
+
 impl crate::HasNodeIndex for crate::StmtIpyEscapeCommand {
     fn node_index(&self) -> &crate::AtomicNodeIndex {
         &self.node_index
@@ -4737,6 +4795,7 @@ impl Stmt {
             Stmt::Break(node) => node.visit_source_order(visitor),
             Stmt::Continue(node) => node.visit_source_order(visitor),
             Stmt::IpyEscapeCommand(node) => node.visit_source_order(visitor),
+            Stmt::BodyStmt(node) => node.visit_source_order(visitor),
         }
     }
 }
@@ -4942,6 +5001,8 @@ pub enum StmtRef<'a> {
     Break(&'a crate::StmtBreak),
     #[is(name = "continue_stmt")]
     Continue(&'a crate::StmtContinue),
+    #[is(name = "body_stmt")]
+    BodyStmt(&'a crate::StmtBody),
     #[is(name = "ipy_escape_command_stmt")]
     IpyEscapeCommand(&'a crate::StmtIpyEscapeCommand),
 }
@@ -4973,6 +5034,7 @@ impl<'a> From<&'a Stmt> for StmtRef<'a> {
             Stmt::Pass(node) => StmtRef::Pass(node),
             Stmt::Break(node) => StmtRef::Break(node),
             Stmt::Continue(node) => StmtRef::Continue(node),
+            Stmt::BodyStmt(node) => StmtRef::BodyStmt(node),
             Stmt::IpyEscapeCommand(node) => StmtRef::IpyEscapeCommand(node),
         }
     }
@@ -5122,6 +5184,12 @@ impl<'a> From<&'a crate::StmtContinue> for StmtRef<'a> {
     }
 }
 
+impl<'a> From<&'a crate::StmtBody> for StmtRef<'a> {
+    fn from(node: &'a crate::StmtBody) -> Self {
+        Self::BodyStmt(node)
+    }
+}
+
 impl<'a> From<&'a crate::StmtIpyEscapeCommand> for StmtRef<'a> {
     fn from(node: &'a crate::StmtIpyEscapeCommand) -> Self {
         Self::IpyEscapeCommand(node)
@@ -5156,6 +5224,7 @@ impl ruff_text_size::Ranged for StmtRef<'_> {
             Self::Break(node) => node.range(),
             Self::Continue(node) => node.range(),
             Self::IpyEscapeCommand(node) => node.range(),
+            Self::BodyStmt(node) => node.range(),
         }
     }
 }
@@ -5188,6 +5257,7 @@ impl crate::HasNodeIndex for StmtRef<'_> {
             Self::Break(node) => node.node_index(),
             Self::Continue(node) => node.node_index(),
             Self::IpyEscapeCommand(node) => node.node_index(),
+            Self::BodyStmt(node) => node.node_index(),
         }
     }
 }
@@ -5861,6 +5931,7 @@ pub enum AnyNodeRef<'a> {
     StmtPass(&'a crate::StmtPass),
     StmtBreak(&'a crate::StmtBreak),
     StmtContinue(&'a crate::StmtContinue),
+    StmtBody(&'a crate::StmtBody),
     StmtIpyEscapeCommand(&'a crate::StmtIpyEscapeCommand),
     ExprBoolOp(&'a crate::ExprBoolOp),
     ExprNamed(&'a crate::ExprNamed),
@@ -5987,6 +6058,7 @@ impl<'a> From<&'a Stmt> for AnyNodeRef<'a> {
             Stmt::Pass(node) => AnyNodeRef::StmtPass(node),
             Stmt::Break(node) => AnyNodeRef::StmtBreak(node),
             Stmt::Continue(node) => AnyNodeRef::StmtContinue(node),
+            Stmt::BodyStmt(node) => AnyNodeRef::StmtBody(node),
             Stmt::IpyEscapeCommand(node) => AnyNodeRef::StmtIpyEscapeCommand(node),
         }
     }
@@ -6019,6 +6091,7 @@ impl<'a> From<StmtRef<'a>> for AnyNodeRef<'a> {
             StmtRef::Pass(node) => AnyNodeRef::StmtPass(node),
             StmtRef::Break(node) => AnyNodeRef::StmtBreak(node),
             StmtRef::Continue(node) => AnyNodeRef::StmtContinue(node),
+            StmtRef::BodyStmt(node) => AnyNodeRef::StmtBody(node),
             StmtRef::IpyEscapeCommand(node) => AnyNodeRef::StmtIpyEscapeCommand(node),
         }
     }
@@ -6051,6 +6124,7 @@ impl<'a> AnyNodeRef<'a> {
             Self::StmtPass(node) => Some(StmtRef::Pass(node)),
             Self::StmtBreak(node) => Some(StmtRef::Break(node)),
             Self::StmtContinue(node) => Some(StmtRef::Continue(node)),
+            Self::StmtBody(node) => Some(StmtRef::BodyStmt(node)),
             Self::StmtIpyEscapeCommand(node) => Some(StmtRef::IpyEscapeCommand(node)),
 
             _ => None,
@@ -6477,6 +6551,12 @@ impl<'a> From<&'a crate::StmtBreak> for AnyNodeRef<'a> {
 impl<'a> From<&'a crate::StmtContinue> for AnyNodeRef<'a> {
     fn from(node: &'a crate::StmtContinue) -> AnyNodeRef<'a> {
         AnyNodeRef::StmtContinue(node)
+    }
+}
+
+impl<'a> From<&'a crate::StmtBody> for AnyNodeRef<'a> {
+    fn from(node: &'a crate::StmtBody) -> AnyNodeRef<'a> {
+        AnyNodeRef::StmtBody(node)
     }
 }
 
@@ -6917,6 +6997,7 @@ impl ruff_text_size::Ranged for AnyNodeRef<'_> {
             AnyNodeRef::StmtPass(node) => node.range(),
             AnyNodeRef::StmtBreak(node) => node.range(),
             AnyNodeRef::StmtContinue(node) => node.range(),
+            AnyNodeRef::StmtBody(node) => node.range(),
             AnyNodeRef::StmtIpyEscapeCommand(node) => node.range(),
             AnyNodeRef::ExprBoolOp(node) => node.range(),
             AnyNodeRef::ExprNamed(node) => node.range(),
@@ -7018,6 +7099,7 @@ impl crate::HasNodeIndex for AnyNodeRef<'_> {
             AnyNodeRef::StmtPass(node) => node.node_index(),
             AnyNodeRef::StmtBreak(node) => node.node_index(),
             AnyNodeRef::StmtContinue(node) => node.node_index(),
+            AnyNodeRef::StmtBody(node) => node.node_index(),
             AnyNodeRef::StmtIpyEscapeCommand(node) => node.node_index(),
             AnyNodeRef::ExprBoolOp(node) => node.node_index(),
             AnyNodeRef::ExprNamed(node) => node.node_index(),
@@ -7119,6 +7201,7 @@ impl AnyNodeRef<'_> {
             AnyNodeRef::StmtPass(node) => std::ptr::NonNull::from(*node).cast(),
             AnyNodeRef::StmtBreak(node) => std::ptr::NonNull::from(*node).cast(),
             AnyNodeRef::StmtContinue(node) => std::ptr::NonNull::from(*node).cast(),
+            AnyNodeRef::StmtBody(node) => std::ptr::NonNull::from(*node).cast(),
             AnyNodeRef::StmtIpyEscapeCommand(node) => std::ptr::NonNull::from(*node).cast(),
             AnyNodeRef::ExprBoolOp(node) => std::ptr::NonNull::from(*node).cast(),
             AnyNodeRef::ExprNamed(node) => std::ptr::NonNull::from(*node).cast(),
@@ -7226,6 +7309,7 @@ impl<'a> AnyNodeRef<'a> {
             AnyNodeRef::StmtPass(node) => node.visit_source_order(visitor),
             AnyNodeRef::StmtBreak(node) => node.visit_source_order(visitor),
             AnyNodeRef::StmtContinue(node) => node.visit_source_order(visitor),
+            AnyNodeRef::StmtBody(node) => node.visit_source_order(visitor),
             AnyNodeRef::StmtIpyEscapeCommand(node) => node.visit_source_order(visitor),
             AnyNodeRef::ExprBoolOp(node) => node.visit_source_order(visitor),
             AnyNodeRef::ExprNamed(node) => node.visit_source_order(visitor),
@@ -7335,6 +7419,7 @@ impl AnyNodeRef<'_> {
                 | AnyNodeRef::StmtPass(_)
                 | AnyNodeRef::StmtBreak(_)
                 | AnyNodeRef::StmtContinue(_)
+                | AnyNodeRef::StmtBody(_)
                 | AnyNodeRef::StmtIpyEscapeCommand(_)
         )
     }
@@ -7751,6 +7836,16 @@ impl<'a> TryFrom<AnyRootNodeRef<'a>> for &'a crate::StmtContinue {
     fn try_from(node: AnyRootNodeRef<'a>) -> Result<&'a crate::StmtContinue, ()> {
         match node {
             AnyRootNodeRef::Stmt(Stmt::Continue(node)) => Ok(node),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<AnyRootNodeRef<'a>> for &'a crate::StmtBody {
+    type Error = ();
+    fn try_from(node: AnyRootNodeRef<'a>) -> Result<&'a crate::StmtBody, ()> {
+        match node {
+            AnyRootNodeRef::Stmt(Stmt::BodyStmt(node)) => Ok(node),
             _ => Err(()),
         }
     }
@@ -8776,6 +8871,7 @@ pub enum NodeKind {
     StmtPass,
     StmtBreak,
     StmtContinue,
+    StmtBody,
     StmtIpyEscapeCommand,
     ExprBoolOp,
     ExprNamed,
@@ -8875,6 +8971,7 @@ impl AnyNodeRef<'_> {
             AnyNodeRef::StmtPass(_) => NodeKind::StmtPass,
             AnyNodeRef::StmtBreak(_) => NodeKind::StmtBreak,
             AnyNodeRef::StmtContinue(_) => NodeKind::StmtContinue,
+            AnyNodeRef::StmtBody(_) => NodeKind::StmtBody,
             AnyNodeRef::StmtIpyEscapeCommand(_) => NodeKind::StmtIpyEscapeCommand,
             AnyNodeRef::ExprBoolOp(_) => NodeKind::ExprBoolOp,
             AnyNodeRef::ExprNamed(_) => NodeKind::ExprNamed,
@@ -8955,7 +9052,7 @@ impl AnyNodeRef<'_> {
 pub struct ModModule {
     pub node_index: crate::AtomicNodeIndex,
     pub range: ruff_text_size::TextRange,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
 }
 
 /// See also [Module](https://docs.python.org/3/library/ast.html#ast.Module)
@@ -8965,6 +9062,15 @@ pub struct ModExpression {
     pub node_index: crate::AtomicNodeIndex,
     pub range: ruff_text_size::TextRange,
     pub body: Box<Expr>,
+}
+
+/// Synthetic statement that represents a body (suite) of statements.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "get-size", derive(get_size2::GetSize))]
+pub struct StmtBody {
+    pub node_index: crate::AtomicNodeIndex,
+    pub range: ruff_text_size::TextRange,
+    pub body: Vec<Box<Stmt>>,
 }
 
 /// See also [FunctionDef](https://docs.python.org/3/library/ast.html#ast.FunctionDef)
@@ -8982,7 +9088,7 @@ pub struct StmtFunctionDef {
     pub type_params: Option<Box<crate::TypeParams>>,
     pub parameters: Box<crate::Parameters>,
     pub returns: Option<Box<Expr>>,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
 }
 
 /// See also [ClassDef](https://docs.python.org/3/library/ast.html#ast.ClassDef)
@@ -8995,7 +9101,7 @@ pub struct StmtClassDef {
     pub name: crate::Identifier,
     pub type_params: Option<Box<crate::TypeParams>>,
     pub arguments: Option<Box<crate::Arguments>>,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
 }
 
 /// See also [Return](https://docs.python.org/3/library/ast.html#ast.Return)
@@ -9072,8 +9178,8 @@ pub struct StmtFor {
     pub is_async: bool,
     pub target: Box<Expr>,
     pub iter: Box<Expr>,
-    pub body: Vec<Stmt>,
-    pub orelse: Vec<Stmt>,
+    pub body: crate::StmtBody,
+    pub orelse: crate::StmtBody,
 }
 
 /// See also [While](https://docs.python.org/3/library/ast.html#ast.While)
@@ -9084,8 +9190,8 @@ pub struct StmtWhile {
     pub node_index: crate::AtomicNodeIndex,
     pub range: ruff_text_size::TextRange,
     pub test: Box<Expr>,
-    pub body: Vec<Stmt>,
-    pub orelse: Vec<Stmt>,
+    pub body: crate::StmtBody,
+    pub orelse: crate::StmtBody,
 }
 
 /// See also [If](https://docs.python.org/3/library/ast.html#ast.If)
@@ -9095,7 +9201,7 @@ pub struct StmtIf {
     pub node_index: crate::AtomicNodeIndex,
     pub range: ruff_text_size::TextRange,
     pub test: Box<Expr>,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
     pub elif_else_clauses: Vec<crate::ElifElseClause>,
 }
 
@@ -9110,7 +9216,7 @@ pub struct StmtWith {
     pub range: ruff_text_size::TextRange,
     pub is_async: bool,
     pub items: Vec<crate::WithItem>,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
 }
 
 /// See also [Match](https://docs.python.org/3/library/ast.html#ast.Match)
@@ -9140,10 +9246,10 @@ pub struct StmtRaise {
 pub struct StmtTry {
     pub node_index: crate::AtomicNodeIndex,
     pub range: ruff_text_size::TextRange,
-    pub body: Vec<Stmt>,
+    pub body: crate::StmtBody,
     pub handlers: Vec<ExceptHandler>,
-    pub orelse: Vec<Stmt>,
-    pub finalbody: Vec<Stmt>,
+    pub orelse: crate::StmtBody,
+    pub finalbody: crate::StmtBody,
     pub is_star: bool,
 }
 
@@ -10240,6 +10346,22 @@ impl StmtContinue {
             range: _,
             node_index: _,
         } = self;
+    }
+}
+
+impl StmtBody {
+    pub(crate) fn visit_source_order<'a, V>(&'a self, visitor: &mut V)
+    where
+        V: SourceOrderVisitor<'a> + ?Sized,
+    {
+        let StmtBody {
+            body,
+            range: _,
+            node_index: _,
+        } = self;
+        for stmt in body {
+            visitor.visit_stmt(stmt);
+        }
     }
 }
 

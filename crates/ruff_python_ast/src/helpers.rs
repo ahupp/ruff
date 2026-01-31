@@ -14,7 +14,7 @@ use crate::token::parenthesized_range;
 use crate::visitor::Visitor;
 use crate::{
     self as ast, Arguments, AtomicNodeIndex, CmpOp, DictItem, ExceptHandler, Expr, ExprNoneLiteral,
-    InterpolatedStringElement, MatchCase, Operator, Pattern, Stmt, TypeParam,
+    InterpolatedStringElement, MatchCase, Operator, Pattern, Stmt, StmtBody, TypeParam,
 };
 use crate::{AnyNodeRef, ExprContext};
 
@@ -411,7 +411,10 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
                 type_params
                     .iter()
                     .any(|type_param| any_over_type_param(type_param, func))
-            }) || body.iter().any(|stmt| any_over_stmt(stmt, func))
+            }) || body
+                .body
+                .iter()
+                .any(|stmt| any_over_stmt(stmt, func))
                 || decorator_list
                     .iter()
                     .any(|decorator| any_over_expr(&decorator.expression, func))
@@ -441,7 +444,10 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
                         .iter()
                         .any(|type_param| any_over_type_param(type_param, func))
                 })
-                || body.iter().any(|stmt| any_over_stmt(stmt, func))
+                || body
+                    .body
+                    .iter()
+                    .any(|stmt| any_over_stmt(stmt, func))
                 || decorator_list
                     .iter()
                     .any(|decorator| any_over_expr(&decorator.expression, func))
@@ -499,8 +505,8 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
         }) => {
             any_over_expr(target, func)
                 || any_over_expr(iter, func)
-                || any_over_body(body, func)
-                || any_over_body(orelse, func)
+                || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
+                || orelse.body.iter().any(|stmt| any_over_stmt(stmt, func))
         }
         Stmt::While(ast::StmtWhile {
             test,
@@ -508,7 +514,11 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
             orelse,
             range: _,
             node_index: _,
-        }) => any_over_expr(test, func) || any_over_body(body, func) || any_over_body(orelse, func),
+        }) => {
+            any_over_expr(test, func)
+                || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
+                || orelse.body.iter().any(|stmt| any_over_stmt(stmt, func))
+        }
         Stmt::If(ast::StmtIf {
             test,
             body,
@@ -517,13 +527,13 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
             node_index: _,
         }) => {
             any_over_expr(test, func)
-                || any_over_body(body, func)
+                || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
                 || elif_else_clauses.iter().any(|clause| {
                     clause
                         .test
                         .as_ref()
                         .is_some_and(|test| any_over_expr(test, func))
-                        || any_over_body(&clause.body, func)
+                        || clause.body.body.iter().any(|stmt| any_over_stmt(stmt, func))
                 })
         }
         Stmt::With(ast::StmtWith { items, body, .. }) => {
@@ -533,7 +543,7 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
                         .optional_vars
                         .as_ref()
                         .is_some_and(|expr| any_over_expr(expr, func))
-            }) || any_over_body(body, func)
+            }) || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
         }
         Stmt::Raise(ast::StmtRaise {
             exc,
@@ -555,7 +565,7 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
             range: _,
             node_index: _,
         }) => {
-            any_over_body(body, func)
+            body.body.iter().any(|stmt| any_over_stmt(stmt, func))
                 || handlers.iter().any(|handler| {
                     let ExceptHandler::ExceptHandler(ast::ExceptHandlerExceptHandler {
                         type_,
@@ -563,10 +573,10 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
                         ..
                     }) = handler;
                     type_.as_ref().is_some_and(|expr| any_over_expr(expr, func))
-                        || any_over_body(body, func)
+                        || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
                 })
-                || any_over_body(orelse, func)
-                || any_over_body(finalbody, func)
+                || orelse.body.iter().any(|stmt| any_over_stmt(stmt, func))
+                || finalbody.body.iter().any(|stmt| any_over_stmt(stmt, func))
         }
         Stmt::Assert(ast::StmtAssert {
             test,
@@ -594,7 +604,7 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
                     } = case;
                     any_over_pattern(pattern, func)
                         || guard.as_ref().is_some_and(|expr| any_over_expr(expr, func))
-                        || any_over_body(body, func)
+                        || body.body.iter().any(|stmt| any_over_stmt(stmt, func))
                 })
         }
         Stmt::Import(_) => false,
@@ -608,11 +618,10 @@ pub fn any_over_stmt(stmt: &Stmt, func: &dyn Fn(&Expr) -> bool) -> bool {
         }) => any_over_expr(value, func),
         Stmt::Pass(_) | Stmt::Break(_) | Stmt::Continue(_) => false,
         Stmt::IpyEscapeCommand(_) => false,
+        Stmt::BodyStmt(ast::StmtBody { body, .. }) => {
+            body.iter().any(|stmt| any_over_stmt(stmt, func))
+        }
     }
-}
-
-pub fn any_over_body(body: &[Stmt], func: &dyn Fn(&Expr) -> bool) -> bool {
-    body.iter().any(|stmt| any_over_stmt(stmt, func))
 }
 
 pub fn is_dunder(id: &str) -> bool {
@@ -761,21 +770,23 @@ pub fn map_starred(expr: &Expr) -> &Expr {
 /// Return `true` if the body uses `locals()`, `globals()`, `vars()`, `eval()`.
 ///
 /// Accepts a closure that determines whether a given name (e.g., `"list"`) is a Python builtin.
-pub fn uses_magic_variable_access<F>(body: &[Stmt], is_builtin: F) -> bool
+pub fn uses_magic_variable_access<F>(body: &StmtBody, is_builtin: F) -> bool
 where
     F: Fn(&str) -> bool,
 {
-    any_over_body(body, &|expr| {
-        if let Expr::Call(ast::ExprCall { func, .. }) = expr {
-            if let Expr::Name(ast::ExprName { id, .. }) = func.as_ref() {
-                if matches!(id.as_str(), "locals" | "globals" | "vars" | "exec" | "eval") {
-                    if is_builtin(id.as_str()) {
-                        return true;
+    body.body.iter().any(|stmt| {
+        any_over_stmt(stmt, &|expr| {
+            if let Expr::Call(ast::ExprCall { func, .. }) = expr {
+                if let Expr::Name(ast::ExprName { id, .. }) = func.as_ref() {
+                    if matches!(id.as_str(), "locals" | "globals" | "vars" | "exec" | "eval") {
+                        if is_builtin(id.as_str()) {
+                            return true;
+                        }
                     }
                 }
             }
-        }
-        false
+            false
+        })
     })
 }
 

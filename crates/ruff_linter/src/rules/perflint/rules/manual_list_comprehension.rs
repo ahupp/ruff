@@ -133,7 +133,7 @@ pub(crate) fn manual_list_comprehension(checker: &Checker, for_stmt: &ast::StmtF
         _ => return,
     };
 
-    let ast::Stmt::Expr(ast::StmtExpr { value, .. }) = stmt else {
+    let ast::Stmt::Expr(ast::StmtExpr { value, .. }) = stmt.as_ref() else {
         return;
     };
 

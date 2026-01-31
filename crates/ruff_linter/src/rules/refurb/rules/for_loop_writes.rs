@@ -144,7 +144,10 @@ fn for_loop_writes(
     if !for_stmt.orelse.is_empty() {
         return;
     }
-    let [Stmt::Expr(stmt_expr)] = for_stmt.body.as_slice() else {
+    let [stmt] = for_stmt.body.as_slice() else {
+        return;
+    };
+    let Stmt::Expr(stmt_expr) = stmt.as_ref() else {
         return;
     };
 

@@ -1,10 +1,10 @@
 //! Specialized AST visitor trait and walk functions that only visit statements.
 
-use crate::{self as ast, ElifElseClause, ExceptHandler, MatchCase, Stmt};
+use crate::{self as ast, ElifElseClause, ExceptHandler, MatchCase, Stmt, StmtBody};
 
 /// A trait for AST visitors that only need to visit statements.
 pub trait StatementVisitor<'a> {
-    fn visit_body(&mut self, body: &'a [Stmt]) {
+    fn visit_body(&mut self, body: &'a StmtBody) {
         walk_body(self, body);
     }
     fn visit_stmt(&mut self, stmt: &'a Stmt) {
@@ -21,9 +21,9 @@ pub trait StatementVisitor<'a> {
     }
 }
 
-pub fn walk_body<'a, V: StatementVisitor<'a> + ?Sized>(visitor: &mut V, body: &'a [Stmt]) {
-    for stmt in body {
-        visitor.visit_stmt(stmt);
+pub fn walk_body<'a, V: StatementVisitor<'a> + ?Sized>(visitor: &mut V, body: &'a StmtBody) {
+    for stmt in &body.body {
+        visitor.visit_stmt(stmt.as_ref());
     }
 }
 
@@ -74,6 +74,11 @@ pub fn walk_stmt<'a, V: StatementVisitor<'a> + ?Sized>(visitor: &mut V, stmt: &'
             }
             visitor.visit_body(orelse);
             visitor.visit_body(finalbody);
+        }
+        Stmt::BodyStmt(ast::StmtBody { body, .. }) => {
+            for stmt in body {
+                visitor.visit_stmt(stmt);
+            }
         }
         _ => {}
     }

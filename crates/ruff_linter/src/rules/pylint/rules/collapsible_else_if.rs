@@ -79,9 +79,12 @@ pub(crate) fn collapsible_else_if(checker: &Checker, stmt: &Stmt) {
     else {
         return;
     };
-    let [first @ Stmt::If(ast::StmtIf { .. })] = body.as_slice() else {
+    let [first] = body.as_slice() else {
         return;
     };
+    if !matches!(first.as_ref(), Stmt::If(ast::StmtIf { .. })) {
+        return;
+    }
 
     let mut diagnostic = checker.report_diagnostic(
         CollapsibleElseIf,
@@ -89,7 +92,7 @@ pub(crate) fn collapsible_else_if(checker: &Checker, stmt: &Stmt) {
     );
     diagnostic.try_set_fix(|| {
         convert_to_elif(
-            first,
+            first.as_ref(),
             else_clause,
             checker.locator(),
             checker.indexer(),

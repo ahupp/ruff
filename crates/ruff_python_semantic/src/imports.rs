@@ -224,7 +224,7 @@ impl<'de> serde::de::Deserialize<'de> for NameImports {
                     return Err(E::custom("Expected a single statement"));
                 };
 
-                let imports = match stmt {
+                let imports = match stmt.as_ref() {
                     Stmt::ImportFrom(ast::StmtImportFrom {
                         module,
                         names,

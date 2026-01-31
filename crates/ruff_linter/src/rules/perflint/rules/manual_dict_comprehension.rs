@@ -86,20 +86,21 @@ pub(crate) fn manual_dict_comprehension(checker: &Checker, for_stmt: &ast::StmtF
     let ast::StmtFor { body, target, .. } = for_stmt;
     let body = body.as_slice();
     let target = target.as_ref();
-    let (stmt, if_test) = match body {
+    let [stmt] = body else {
+        return;
+    };
+    let (stmt, if_test) = match stmt.as_ref() {
         // ```python
         // for idx, name in enumerate(names):
         //     if idx % 2 == 0:
         //         result[name] = idx
         // ```
-        [
-            Stmt::If(ast::StmtIf {
-                body,
-                elif_else_clauses,
-                test,
-                ..
-            }),
-        ] => {
+        Stmt::If(ast::StmtIf {
+            body,
+            elif_else_clauses,
+            test,
+            ..
+        }) => {
             // TODO(charlie): If there's an `else` clause, verify that the `else` has the
             // same structure.
             if !elif_else_clauses.is_empty() {
@@ -114,8 +115,7 @@ pub(crate) fn manual_dict_comprehension(checker: &Checker, for_stmt: &ast::StmtF
         // for idx, name in enumerate(names):
         //     result[name] = idx
         // ```
-        [stmt] => (stmt, None),
-        _ => return,
+        _ => (stmt, None),
     };
 
     let Stmt::Assign(ast::StmtAssign {
@@ -123,7 +123,7 @@ pub(crate) fn manual_dict_comprehension(checker: &Checker, for_stmt: &ast::StmtF
         value,
         range,
         node_index: _,
-    }) = stmt
+    }) = stmt.as_ref()
     else {
         return;
     };

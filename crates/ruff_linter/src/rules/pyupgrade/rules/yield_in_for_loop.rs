@@ -99,7 +99,7 @@ pub(crate) fn yield_in_for_loop(checker: &Checker, stmt_for: &ast::StmtFor) {
         value,
         range: _,
         node_index: _,
-    }) = &body
+    }) = body.as_ref()
     else {
         return;
     };
