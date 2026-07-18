@@ -1,4 +1,6 @@
 use crate::{Mode, ParseOptions, parse, parse_expression, parse_module};
+use ruff_python_ast::{Expr, Mod};
+use ruff_text_size::{TextRange, TextSize};
 
 #[test]
 fn test_modes() {
@@ -6,6 +8,87 @@ fn test_modes() {
 
     assert!(parse(source, ParseOptions::from(Mode::Expression)).is_ok());
     assert!(parse(source, ParseOptions::from(Mode::Module)).is_ok());
+}
+
+fn parse_unit_expression(source: &str) -> Expr {
+    let parsed = parse(
+        source,
+        ParseOptions::from(Mode::Expression).with_unit_syntax(true),
+    )
+    .unwrap();
+    let Mod::Expression(expression) = parsed.into_syntax() else {
+        unreachable!();
+    };
+    *expression.body
+}
+
+#[test]
+fn unit_syntax_is_opt_in() {
+    assert!(parse_expression("5 mm").is_err());
+    assert!(matches!(parse_unit_expression("5 mm"), Expr::Call(_)));
+}
+
+#[test]
+fn unit_application_lowers_to_a_reserved_call() {
+    let Expr::Call(call) = parse_unit_expression("5 mm") else {
+        panic!("expected the unit marker call");
+    };
+    assert_eq!(
+        call.range,
+        TextRange::new(TextSize::new(0), TextSize::new(4))
+    );
+    assert_eq!(call.arguments.args.len(), 2);
+    assert!(matches!(call.arguments.args[0], Expr::NumberLiteral(_)));
+    let Expr::StringLiteral(unit) = &call.arguments.args[1] else {
+        panic!("expected the unit expression string");
+    };
+    assert_eq!(unit.value.to_str(), "mm");
+    assert_eq!(
+        unit.range,
+        TextRange::new(TextSize::new(2), TextSize::new(4))
+    );
+}
+
+#[test]
+fn unit_syntax_accepts_upstream_simple_expression_forms() {
+    for source in [
+        "x parsec",
+        "y.z watts",
+        "area[index] meters**2",
+        "[1.0, 37.0] newton meters",
+        "-x dBm",
+        "x**2 meters",
+        "(1 inch) mm",
+        "f(5 mm)",
+        "[x meters for x in range(10)]",
+        "x newton meters/(second*kg)",
+        "x newton/(second # a comment\n *kg)",
+    ] {
+        parse(
+            source,
+            ParseOptions::from(Mode::Expression).with_unit_syntax(true),
+        )
+        .unwrap_or_else(|error| panic!("failed to parse `{source}`: {error}"));
+    }
+}
+
+#[test]
+fn unit_syntax_rejects_unparenthesized_operator_mixing() {
+    for source in ["5 mm + x", "x + 5 mm"] {
+        assert!(
+            parse(
+                source,
+                ParseOptions::from(Mode::Expression).with_unit_syntax(true),
+            )
+            .is_err(),
+            "`{source}` should require parentheses"
+        );
+    }
+    parse(
+        "(5 mm) + x",
+        ParseOptions::from(Mode::Expression).with_unit_syntax(true),
+    )
+    .expect("parenthesized unit application should compose with operators");
 }
 
 #[test]

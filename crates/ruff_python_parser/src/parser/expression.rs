@@ -211,13 +211,122 @@ impl<'src> Parser<'src> {
             Expr::Lambda(self.parse_lambda_expr()).into()
         } else {
             let start = self.node_start();
-            let parsed_expr = self.parse_simple_expression(context);
+            let mut parsed_expr = self.parse_simple_expression(context);
+
+            if self.options.unit_syntax
+                && self.at(TokenKind::Name)
+                && parsed_expr.end() < self.current_token_range().start()
+            {
+                parsed_expr = self.parse_unit_application(parsed_expr);
+            }
 
             if self.at(TokenKind::If) {
                 Expr::If(self.parse_if_expression(parsed_expr.expr, start)).into()
             } else {
                 parsed_expr
             }
+        }
+    }
+
+    /// Parses the unit suffix in a physical-unit application.
+    ///
+    /// The prototype lowers the extension to an ordinary reserved call so the
+    /// rest of Ruff's AST infrastructure remains unchanged:
+    ///
+    /// `5 mm` -> `__ruff_unit_application__(5, "mm")`
+    fn parse_unit_application(&mut self, value: ParsedExpr) -> ParsedExpr {
+        let value_is_factor = value.is_parenthesized || is_unit_application_factor(&value.expr);
+        let start = value.start();
+        let unit_start = self.current_token_range().start();
+        let unit_value = self.parse_unit_expression();
+        let unit_range = TextRange::new(unit_start, self.prev_token_end);
+
+        if !value_is_factor {
+            self.add_error(
+                ParseErrorType::UnparenthesizedUnitApplication,
+                TextRange::new(start, unit_range.end()),
+            );
+        }
+
+        let range = TextRange::new(start, unit_range.end());
+        let function = Expr::Name(ast::ExprName {
+            range: TextRange::empty(start),
+            id: Name::new("__ruff_unit_application__"),
+            ctx: ExprContext::Load,
+            node_index: AtomicNodeIndex::NONE,
+        });
+        let unit = Expr::StringLiteral(ast::ExprStringLiteral {
+            range: unit_range,
+            value: ast::StringLiteralValue::single(ast::StringLiteral {
+                range: unit_range,
+                value: unit_value.into(),
+                flags: ast::StringLiteralFlags::empty(),
+                node_index: AtomicNodeIndex::NONE,
+            }),
+            node_index: AtomicNodeIndex::NONE,
+        });
+
+        Expr::Call(ast::ExprCall {
+            range,
+            func: Box::new(function),
+            arguments: ast::Arguments {
+                range,
+                args: vec![value.expr, unit].into_boxed_slice(),
+                keywords: Box::default(),
+                node_index: AtomicNodeIndex::NONE,
+            },
+            node_index: AtomicNodeIndex::NONE,
+        })
+        .into()
+    }
+
+    fn parse_unit_expression(&mut self) -> String {
+        let mut unit = self.parse_unit_group();
+        loop {
+            match self.current_token_kind() {
+                TokenKind::Name => {
+                    unit.push(' ');
+                    unit.push_str(&self.parse_unit_group());
+                }
+                TokenKind::Slash | TokenKind::Star => {
+                    unit.push_str(self.src_text(self.current_token_range()));
+                    self.bump_any();
+                    unit.push_str(&self.parse_unit_group());
+                }
+                TokenKind::DoubleStar => {
+                    unit.push_str("**");
+                    self.bump(TokenKind::DoubleStar);
+                    if self.eat(TokenKind::Minus) {
+                        unit.push('-');
+                    }
+                    if self.at(TokenKind::Int) || self.at(TokenKind::Float) {
+                        unit.push_str(self.src_text(self.current_token_range()));
+                        self.bump_any();
+                    } else {
+                        self.add_error(
+                            ParseErrorType::ExpectedUnitExponent,
+                            self.current_token_range(),
+                        );
+                    }
+                }
+                _ => break,
+            }
+        }
+        unit
+    }
+
+    fn parse_unit_group(&mut self) -> String {
+        if self.eat(TokenKind::Lpar) {
+            let unit = self.parse_unit_expression();
+            self.expect(TokenKind::Rpar);
+            format!("({unit})")
+        } else if self.at(TokenKind::Name) {
+            let name = self.src_text(self.current_token_range()).to_owned();
+            self.bump(TokenKind::Name);
+            name
+        } else {
+            self.add_error(ParseErrorType::ExpectedUnitName, self.current_token_range());
+            String::new()
         }
     }
 
@@ -2862,6 +2971,27 @@ impl<'src> Parser<'src> {
 pub(super) struct ParsedExpr {
     pub(super) expr: Expr,
     pub(super) is_parenthesized: bool,
+}
+
+fn is_unit_application_factor(expr: &Expr) -> bool {
+    match expr {
+        Expr::BinOp(ast::ExprBinOp {
+            op: Operator::Pow, ..
+        }) => true,
+        Expr::BinOp(_)
+        | Expr::BoolOp(_)
+        | Expr::Compare(_)
+        | Expr::If(_)
+        | Expr::Lambda(_)
+        | Expr::Named(_)
+        | Expr::Yield(_)
+        | Expr::YieldFrom(_)
+        | Expr::Starred(_) => false,
+        Expr::UnaryOp(ast::ExprUnaryOp {
+            op: UnaryOp::Not, ..
+        }) => false,
+        _ => true,
+    }
 }
 
 impl ParsedExpr {

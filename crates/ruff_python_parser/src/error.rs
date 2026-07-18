@@ -179,6 +179,12 @@ pub enum ParseErrorType {
     ExpectedImaginaryNumber,
     /// Expected an expression at the current parser location.
     ExpectedExpression,
+    /// A unit application was mixed with another operator without parentheses.
+    UnparenthesizedUnitApplication,
+    /// A unit power was missing its numeric exponent.
+    ExpectedUnitExponent,
+    /// A unit group was missing its unit name.
+    ExpectedUnitName,
     /// The parser expected a specific token that was not found.
     ExpectedToken {
         expected: TokenKind,
@@ -302,6 +308,11 @@ impl std::fmt::Display for ParseErrorType {
                 f.write_str("Expected an imaginary number in complex literal pattern")
             }
             ParseErrorType::ExpectedExpression => f.write_str("Expected an expression"),
+            ParseErrorType::UnparenthesizedUnitApplication => {
+                f.write_str("Units must be parenthesized when mixed with operators")
+            }
+            ParseErrorType::ExpectedUnitExponent => f.write_str("Expected a numeric unit exponent"),
+            ParseErrorType::ExpectedUnitName => f.write_str("Expected a unit name"),
             ParseErrorType::UnexpectedIndentation => f.write_str("Unexpected indentation"),
             ParseErrorType::InvalidAssignmentTarget => f.write_str("Invalid assignment target"),
             ParseErrorType::InvalidAnnotatedAssignmentTarget => {

@@ -26,6 +26,8 @@ pub struct ParseOptions {
     pub(crate) mode: Mode,
     /// Target version for detecting version-related syntax errors.
     pub(crate) target_version: PythonVersion,
+    /// Enables Sketchfield-style physical unit applications such as `5 mm`.
+    pub(crate) unit_syntax: bool,
 }
 
 impl ParseOptions {
@@ -38,6 +40,13 @@ impl ParseOptions {
     pub fn target_version(&self) -> PythonVersion {
         self.target_version
     }
+
+    /// Parse physical unit applications in expression positions.
+    #[must_use]
+    pub fn with_unit_syntax(mut self, enabled: bool) -> Self {
+        self.unit_syntax = enabled;
+        self
+    }
 }
 
 impl From<Mode> for ParseOptions {
@@ -45,6 +54,7 @@ impl From<Mode> for ParseOptions {
         Self {
             mode,
             target_version: PythonVersion::default(),
+            unit_syntax: false,
         }
     }
 }
@@ -54,6 +64,7 @@ impl From<PySourceType> for ParseOptions {
         Self {
             mode: source_type.as_mode(),
             target_version: PythonVersion::default(),
+            unit_syntax: false,
         }
     }
 }
